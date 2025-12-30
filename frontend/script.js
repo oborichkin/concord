@@ -3,8 +3,7 @@ class VoiceChat {
         // WebRTC configuration
         this.configuration = {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:89.104.67.110:3478' }
             ]
         };
 
