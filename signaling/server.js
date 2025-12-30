@@ -4,6 +4,8 @@ const http = require('http');
 const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
+const rooms = new Map();
+
 wss.on('connection', (ws) => {
     console.log('New client connected');
     let currentUser = null;
@@ -81,9 +83,9 @@ wss.on('connection', (ws) => {
 
     function handleLeaveRoom(data) {
         const { roomId, userId } = data;
-        
+
         if (!rooms.has(roomId)) return;
-        
+
         const room = rooms.get(roomId);
         room.delete(userId);
 
