@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concord</title>
+</head>
+<body>
+    <h1>🎤 Concord</h1>
+    
+    <div class="controls">
+        <button id="startBtn" class="btn">Start Chat</button>
+        <button id="hangupBtn" class="btn hangup" disabled>Hang Up</button>
+    </div>
+
+    <div class="room-controls">
+        <input type="text" id="roomInput" placeholder="Enter room name" value="default-room">
+        <button id="joinBtn" class="btn">Join Room</button>
+    </div>
+
+    <div class="status">
+        <p id="status">Ready to connect</p>
+        <p id="roomStatus">Not in a room</p>
+    </div>
+
+    <div class="audio-container">
+        <h3>Your Microphone:</h3>
+        <audio id="localAudio" autoplay muted></audio>
+        
+        <h3>Remote Participants:</h3>
+        <div id="remoteAudios"></div>
+    </div>
+
+    <div class="peers">
+        <h3>Connected Peers: <span id="peerCount">0</span></h3>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

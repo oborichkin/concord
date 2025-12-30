@@ -1,0 +1,28 @@
+services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: voice-chat-nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - signaling-server
+    networks:
+      - voice-chat-network
+    restart: unless-stopped
+
+  signaling-server:
+    build: ./signaling
+    networks:
+      - voice-chat-network
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+
+networks:
+  voice-chat-network:
+    driver: bridge
