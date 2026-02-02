@@ -1,18 +1,8 @@
+
+
+
 class VoiceChat {
     constructor() {
-        // WebRTC configuration
-        this.configuration = {
-            iceServers: [
-                { urls: 'stun:89.104.67.110:3478' }
-            ]
-        };
-
-        // Connection state
-        this.localStream = null;
-        this.peerConnections = {};
-        this.signalingSocket = null;
-        this.roomId = null;
-        this.userId = this.generateUserId();
 
         // DOM Elements
         this.startBtn = document.getElementById('startBtn');
@@ -32,10 +22,6 @@ class VoiceChat {
 
         // Connect to signaling server
         this.connectSignaling();
-    }
-
-    generateUserId() {
-        return Math.random().toString(36).substr(2, 9);
     }
 
     connectSignaling() {
@@ -244,13 +230,16 @@ class VoiceChat {
     }
 
     async createOffer(remoteUserId) {
+        console.log('Creating peer connection');
         const peerConnection = this.peerConnections[remoteUserId];
         if (!peerConnection) return;
 
         try {
+            console.log('Creating offer');
             const offer = await peerConnection.createOffer();
+            console.log('Setting local description')
             await peerConnection.setLocalDescription(offer);
-
+            console.log('Sending offer')
             this.sendToServer({
                 type: 'offer',
                 offer: offer,

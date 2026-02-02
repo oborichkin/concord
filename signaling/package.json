@@ -1,5 +1,6 @@
 {
   "name": "voice-chat-signaling",
+  "type": "module",
   "version": "1.0.0",
   "description": "WebSocket signaling server for WebRTC voice chat",
   "main": "server.js",
@@ -8,6 +9,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "uuid": "^13.0.0",
     "ws": "^8.14.2"
   },
   "devDependencies": {
