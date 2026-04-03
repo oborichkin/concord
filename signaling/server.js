@@ -8,6 +8,12 @@ wss.on('connection', (ws) => {
 
     ws.id = uuidv4();
 
+    ws.send(JSON.stringify({
+        "type": "welcome",
+        "you": ws.id,
+        "peers": [...connections].map((conn) => conn.id),
+    }))
+
     connections.forEach((conn) => {
         conn.send(JSON.stringify({
             "type": "user-joined",
@@ -26,7 +32,6 @@ wss.on('connection', (ws) => {
             connections
                 .filter((conn) => conn.id != ws.id)
                 .forEach((conn) => conn.send(data))
-            forwardToOthers(data);
         } catch (error) {
             console.error('Error parsing message:', error);
         }

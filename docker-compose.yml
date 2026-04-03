@@ -1,22 +1,7 @@
 services:
 
-  coturn-stun:
-    image: coturn/coturn:latest
-    # network_mode: host is essential for STUN/TURN in Docker to work correctly 
-    # as it allows the container to use the host's public IP addresses directly.
-    network_mode: host 
-    command: 
-      - "--stun-only"
-      - "--no-cli"
-      - "--no-multicast-peers"
-      - "--no-tlsv1"
-      - "-n" # Use command line arguments only, do not use config file
-      - "--log-file=stdout"
-    restart: unless-stopped
-
   nginx:
     image: nginx:alpine
-    container_name: voice-chat-nginx
     ports:
       - "8080:80"
     volumes:
@@ -24,19 +9,8 @@ services:
       - ./frontend:/usr/share/nginx/html
     depends_on:
       - signaling-server
-    networks:
-      - voice-chat-network
     restart: unless-stopped
 
   signaling-server:
     build: ./signaling
-    networks:
-      - voice-chat-network
     restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - PORT=8080
-
-networks:
-  voice-chat-network:
-    driver: bridge
