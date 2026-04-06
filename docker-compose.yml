@@ -12,5 +12,12 @@ services:
     restart: unless-stopped
 
   signaling-server:
-    build: ./signaling
+    build:
+      context: ./signaling
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:8080"
+    volumes:
+      - ./signaling:/app
+      - /app/node_modules
     restart: unless-stopped
