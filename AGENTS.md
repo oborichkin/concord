@@ -25,10 +25,26 @@ Frontend is served as static files by nginx — no build step. The signaling ser
 - Entrypoint: `server.js`
 - Dependencies: `ws`, `uuid`
 - Dev: `npm run dev` (uses nodemon, auto-restarts on changes)
-- No tests, no linter, no typecheck configured
+- Test: `npm test` (integration tests in `server.test.js`)
 
 ## Architecture
 
-- `frontend/` — plain HTML + JS, no framework, no bundler. `frontend/Dockerfile` is empty/unused (docker-compose mounts the dir directly into nginx).
+- `frontend/` — plain HTML + JS, no framework, no bundler. docker-compose mounts the dir directly into nginx.
 - `nginx/nginx.conf` — reverse proxy: `/` serves frontend static files, `/ws/` proxies WebSocket connections to signaling-server.
 - `signaling/` — WebSocket signaling server. Manages peer connections via `Map<uuid, WebSocket>`. Messages are JSON; targeted (`data.target`) or broadcast.
+- `specs/` — feature specifications (source of truth for spec-driven development).
+
+## Spec-driven development
+
+Specifications in `specs/` are the source of truth. When implementing or modifying features:
+
+1. **Read the relevant spec first** — understand expected behavior before touching code
+2. **Update the spec** — if the user requests a change, update the spec before writing code
+3. **Keep code and tests in sync with the spec** — implementation must match the spec; tests must cover most behavior described in the spec if possible.
+4. **Spec > code > tests** — if code and spec disagree, the spec wins. Update code to match. If tests and spec disagree, the spec wins. Update tests to match.
+
+### Test command
+
+```sh
+cd signaling && npm test
+```
