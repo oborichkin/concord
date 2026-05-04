@@ -8,7 +8,7 @@
 - [ ] **ICE candidates arriving before remote description** (`frontend/client.js:63-65`)
   `addIceCandidate()` throws if called before `setRemoteDescription()`. Need to queue candidates and flush after remote description is set.
 
-- [ ] **WebSocket always uses `ws://`, never `wss://`** (`frontend/client.js:5`)
+- [x] **WebSocket always uses `ws://`, never `wss://`** (`frontend/client.js:5`)
   Browser blocks mixed-content `ws://` on HTTPS pages. Detect protocol dynamically.
 
 - [ ] **`peers.get()` can return `undefined` in message handlers** (`frontend/client.js:93,100,103,106`)
@@ -28,8 +28,8 @@
 - [ ] **Leftover debug text in log** (`signaling/server.js:25`)
   `"New client ababa connected"` should be cleaned up.
 
-- [ ] **Port 3001 exposed publicly** (`docker-compose.yml:19`)
-  Signaling server is directly accessible, bypassing nginx. Should only be exposed for local dev.
+- [x] **Port 3001 exposed publicly** (`docker-compose.yml`)
+  Signaling server was directly accessible, bypassing the reverse proxy. Removed; signaling server is now only reachable through Caddy internally.
 
 ## Suggestions
 

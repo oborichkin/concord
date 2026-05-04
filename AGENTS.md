@@ -14,10 +14,13 @@ Minimal, bare-bones implementation. Goals:
 ## Running
 
 ```sh
-docker-compose up          # nginx on :8080, signaling-server on :3001 (internal :8080)
+docker compose up                                    # dev: Caddy on :8080
+docker compose -f docker-compose.prod.yml up -d      # production
 ```
 
-Frontend is served as static files by nginx — no build step. The signaling server is the only Node package (`signaling/`).
+Production requires a `.env` file (copy from `.env.prod` and set `DOMAIN`). Caddy auto-provisions TLS via Let's Encrypt for public domains.
+
+Frontend is served as static files by Caddy — no build step. The signaling server is the only Node package (`signaling/`).
 
 ## Signaling server (`signaling/`)
 
@@ -29,8 +32,8 @@ Frontend is served as static files by nginx — no build step. The signaling ser
 
 ## Architecture
 
-- `frontend/` — plain HTML + JS, no framework, no bundler. docker-compose mounts the dir directly into nginx.
-- `nginx/nginx.conf` — reverse proxy: `/` serves frontend static files, `/ws/` proxies WebSocket connections to signaling-server.
+- `frontend/` — plain HTML + JS, no framework, no bundler. docker-compose mounts the dir directly into Caddy.
+- `Caddyfile` — Caddy reverse proxy config: `/` serves frontend static files, `/ws/` proxies WebSocket connections to signaling-server. Auto-HTTPS in production.
 - `signaling/` — WebSocket signaling server. Manages peer connections via `Map<uuid, WebSocket>`. Messages are JSON; targeted (`data.target`) or broadcast.
 - `specs/` — feature specifications (source of truth for spec-driven development).
 

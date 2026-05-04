@@ -2,7 +2,7 @@ const ICE_SERVERS = [
     { urls: 'stun:l.google.com:19302' },
     { urls: 'stun:89.104.67.110:3478' },
 ];
-const CONNECTION_URL = `ws://${window.location.host}/ws/`;
+const CONNECTION_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`;
 
 // Objects
 let localStream = null;

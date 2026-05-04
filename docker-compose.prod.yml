@@ -3,12 +3,15 @@ services:
   caddy:
     image: caddy:alpine
     ports:
-      - "8080:80"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./frontend:/srv
+      - caddy_data:/data
+      - caddy_config:/config
     environment:
-      - DOMAIN=:80
+      - DOMAIN=${DOMAIN:-:80}
     depends_on:
       - signaling-server
     restart: unless-stopped
@@ -16,8 +19,11 @@ services:
   signaling-server:
     build:
       context: ./signaling
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ./signaling:/app
-      - /app/node_modules
+      dockerfile: Dockerfile
+    expose:
+      - "8080"
     restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
