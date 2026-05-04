@@ -1,8 +1,17 @@
 import WebSocket from 'ws';
 import { createServer } from './server.js';
 
+const log = console.log.bind(console);
+const error = console.error.bind(console);
+
+let captured = [];
+let capturing = false;
+console.log = (...args) => { if (capturing) captured.push({ level: 'log', args }); };
+console.error = (...args) => { if (capturing) captured.push({ level: 'error', args }); };
+
 let passed = 0;
 let failed = 0;
+const failures = [];
 
 function assertEqual(actual, expected, label) {
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -50,15 +59,18 @@ function close(ws) {
 }
 
 async function check(name, fn) {
+    captured = [];
+    capturing = true;
     try {
         await fn();
-        console.log(`  ✓ ${name}`);
+        log(`  ✓ ${name}`);
         passed++;
     } catch (err) {
-        console.log(`  ✖ ${name}`);
-        console.log(`    ${err.message}`);
+        log(`  ✖ ${name}`);
+        failures.push({ name, err, captured: [...captured] });
         failed++;
     }
+    capturing = false;
 }
 
 async function run() {
@@ -66,7 +78,7 @@ async function run() {
     await onceListening(server.wss);
     const port = server.wss.address().port;
 
-    console.log('connection:');
+    log('connection:');
     await check('sends welcome with id and empty peers', async () => {
         const c = await connect(port);
         const msg = await c.recv();
@@ -103,7 +115,7 @@ async function run() {
         await close(c2.ws);
     });
 
-    console.log('targeted messaging:');
+    log('targeted messaging:');
     await check('sends targeted message to specific peer', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
@@ -121,7 +133,7 @@ async function run() {
         await close(c2.ws);
     });
 
-    console.log('broadcast messaging:');
+    log('broadcast messaging:');
     await check('broadcasts message to all other peers', async () => {
         const c1 = await connect(port);
         await c1.recv();
@@ -147,7 +159,7 @@ async function run() {
         await close(c3.ws);
     });
 
-    console.log('disconnection:');
+    log('disconnection:');
     await check('removes peer and notifies others', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
@@ -164,7 +176,7 @@ async function run() {
         await close(c2.ws);
     });
 
-    console.log('error handling:');
+    log('error handling:');
     await check('does not crash on malformed JSON', async () => {
         const c = await connect(port);
         await c.recv();
@@ -185,9 +197,26 @@ async function run() {
         await close(c.ws);
     });
 
+    if (failures.length > 0) {
+        log('\n--- failure details ---\n');
+        for (const { name, err, captured } of failures) {
+            log(`✖ ${name}`);
+            log(`  ${err.message}`);
+            if (captured.length > 0) {
+                log('  server output:');
+                for (const entry of captured) {
+                    const fn = entry.level === 'error' ? error : log;
+                    fn('   ', ...entry.args);
+                }
+            }
+            log('');
+        }
+    }
+
+    for (const ws of server.connections.values()) ws.close();
     await new Promise((resolve) => server.wss.close(resolve));
 
-    console.log(`\n${passed} passed, ${failed} failed`);
+    log(`${passed} passed, ${failed} failed`);
     process.exit(failed > 0 ? 1 : 0);
 }
 
