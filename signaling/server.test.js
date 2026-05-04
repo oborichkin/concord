@@ -58,6 +58,15 @@ function close(ws) {
     });
 }
 
+async function pollUntil(fn, { interval = 10, multiplier = 1.5, maxAttempts = 20 } = {}) {
+    for (let i = 0; i < maxAttempts; i++) {
+        if (fn()) return;
+        await new Promise((r) => setTimeout(r, interval));
+        interval *= multiplier;
+    }
+    throw new Error('pollUntil: condition not met within timeout');
+}
+
 async function check(name, fn) {
     captured = [];
     capturing = true;
@@ -181,7 +190,7 @@ async function run() {
         const c = await connect(port);
         await c.recv();
         c.ws.send('not valid json');
-        await new Promise((r) => setTimeout(r, 200));
+        await pollUntil(() => c.ws.readyState === WebSocket.OPEN);
         assertEqual(c.ws.readyState, WebSocket.OPEN, 'readyState');
         c.ws.close();
         await close(c.ws);
@@ -191,7 +200,7 @@ async function run() {
         const c = await connect(port);
         await c.recv();
         c.ws.send(JSON.stringify({ target: 'nonexistent-id', type: 'offer' }));
-        await new Promise((r) => setTimeout(r, 200));
+        await pollUntil(() => c.ws.readyState === WebSocket.OPEN);
         assertEqual(c.ws.readyState, WebSocket.OPEN, 'readyState');
         c.ws.close();
         await close(c.ws);

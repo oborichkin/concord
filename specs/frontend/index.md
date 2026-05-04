@@ -22,7 +22,7 @@ Full-mesh topology: each client establishes a direct RTCPeerConnection with ever
 1. **On `welcome`**: for each peer in `peers` array, create a `Peer` and send an SDP offer
 2. **On `user-joined`**: create a `Peer` (do not send offer — the newcomer will send one)
 3. **On `offer`**: from peer send answer.
-3. **On `user-left`**: destroy the `Peer` (close RTCPeerConnection, remove DOM element)
+4. **On `user-left`**: destroy the `Peer` (close RTCPeerConnection, remove DOM element)
 
 ### Peer connection setup
 
