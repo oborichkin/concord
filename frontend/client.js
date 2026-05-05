@@ -167,3 +167,18 @@ async function connect() {
 }
 
 connect()
+
+const themeStylesheet = document.getElementById('theme-stylesheet');
+const themeSelector = document.getElementById('theme-selector');
+
+function setTheme(name) {
+    themeStylesheet.href = `themes/${name}.css`;
+    localStorage.setItem('theme', name);
+    themeSelector.value = name;
+}
+
+themeSelector.addEventListener('change', (e) => setTheme(e.target.value));
+
+const available = [...themeSelector.options].map(o => o.value);
+const savedTheme = localStorage.getItem('theme') || 'default';
+setTheme(available.includes(savedTheme) ? savedTheme : 'default');

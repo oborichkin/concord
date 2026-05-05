@@ -4,9 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Concord</title>
+    <link rel="stylesheet" id="theme-stylesheet" href="themes/default.css">
+    <script>(function(){var t=localStorage.getItem('theme')||'default';var v=['default','win98'];document.getElementById('theme-stylesheet').href='themes/'+(v.includes(t)?t:'default')+'.css';})();</script>
 </head>
 <body>
     <h1>Concord</h1>
+    <label>Theme
+        <select id="theme-selector">
+            <option value="default">Default</option>
+            <option value="win98">Windows 98</option>
+        </select>
+    </label>
 
     <section id="peers">
         <template id="self-template">

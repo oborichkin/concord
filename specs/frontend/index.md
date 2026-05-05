@@ -2,6 +2,42 @@
 
 Single-page vanilla JS WebRTC voice chat client. No frameworks, no bundler, no build step.
 
+## HTML structure
+
+The page uses semantic HTML only — no layout divs, no styling hooks. All presentation is controlled by the active theme CSS (CSS Zen Garden approach).
+
+- `<h1>` — application title ("Concord")
+- `<label>` with `<select id="theme-selector">` — theme picker (between title and peers section)
+- `<section id="peers">` — contains peer templates and dynamically rendered peer articles
+- `<template id="self-template">` — self entry template
+- `<template id="peer-template">` — remote peer entry template
+
+## Theming
+
+Themes are self-contained CSS files in `frontend/themes/`. The active theme is set via `<link rel="stylesheet" id="theme-stylesheet">` whose `href` is swapped at runtime.
+
+### Available themes
+
+| name | file | description |
+|---|---|---|
+| `default` | `themes/default.css` | Clean minimal look (loaded when no preference saved) |
+| `win98` | `themes/win98.css` | Windows 98 aesthetic — silver chrome, blue title bar, 3D beveled controls |
+
+### Theme selector
+
+- `<select id="theme-selector">` lists all available themes as `<option>` elements
+- On change: update `<link>` href to `themes/{value}.css`, persist choice to `localStorage` key `theme`
+- On page load: restore saved theme from `localStorage`, falling back to `default`
+- If saved theme doesn't match any available `<option>`, fall back to `default` and overwrite `localStorage`
+- An inline `<script>` in `<head>` (after the `<link>`) sets the correct href before first paint to prevent FOUC
+- Each theme CSS is responsible for styling the `<label>`/`<select>` element (positioned top-right by default theme)
+
+### Adding a new theme
+
+1. Create `frontend/themes/<name>.css` — must style all semantic elements present in the HTML
+2. Add `<option value="<name>">Display Name</option>` to `<select id="theme-selector">`
+3. No other changes needed — CSS Zen Garden approach means the theme controls all presentation
+
 ## Media
 
 - Acquire local audio via `getUserMedia` with `echoCancellation`, `noiseSuppression`, `autoGainControl` enabled
