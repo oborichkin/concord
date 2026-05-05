@@ -17,9 +17,20 @@ Single-page vanilla JS WebRTC voice chat client. No frameworks, no bundler, no b
 
 Full-mesh topology: each client establishes a direct RTCPeerConnection with every other client.
 
+### Self entry
+
+On `welcome`, before creating any remote peer entries, render a self entry for the local user:
+
+- Clone `<template id="self-template">` (contains `<article class="self">`, `<h2 class="peer-name">`, mute button only)
+- Display the user's own UUID as the name
+- No `<audio>` element, no volume slider (no need to hear or adjust yourself)
+- Marked with `class="self"` on the `<article>` for visual distinction
+- Mute button toggles `localStream` audio tracks' `enabled` property (enables/disables microphone)
+- Button text: "Mute" when mic is active, "Unmute" when mic is disabled
+
 ### Peer lifecycle
 
-1. **On `welcome`**: for each peer in `peers` array, create a `Peer` and send an SDP offer
+1. **On `welcome`**: render self entry, then for each peer in `peers` array, create a `Peer` and send an SDP offer
 2. **On `user-joined`**: create a `Peer` (do not send offer — the newcomer will send one)
 3. **On `offer`**: from peer send answer.
 4. **On `user-left`**: destroy the `Peer` (close RTCPeerConnection, remove DOM element)

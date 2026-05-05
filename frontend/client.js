@@ -8,8 +8,20 @@ const CONNECTION_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 let localStream = null;
 let signalingSocket = null;
 
-
 let peers = new Map();
+
+function renderSelf(id) {
+    const node = document.getElementById("self-template").content.cloneNode(true);
+    const article = node.querySelector("article");
+    article.querySelector(".peer-name").textContent = id;
+    const muteBtn = node.querySelector(".mute-btn");
+    muteBtn.addEventListener("click", () => {
+        const muted = muteBtn.textContent === "Mute";
+        localStream.getAudioTracks().forEach(track => track.enabled = !muted);
+        muteBtn.textContent = muted ? "Unmute" : "Mute";
+    });
+    peersDiv.prepend(node);
+}
 
 class Peer {
 
@@ -83,6 +95,7 @@ async function handleMessage(message) {
     console.log('Received message:', message);
     switch (message.type) {
         case "welcome":
+            renderSelf(message.id);
             message.peers.forEach(id => {
                 const peer = new Peer(id)
                 peers.set(id, peer)
@@ -131,6 +144,7 @@ async function connect() {
     })
         .then((stream) => {
             localStream = stream;
+            window.localStream = stream;
             // Signaling socket setup
             signalingSocket = new WebSocket(CONNECTION_URL);
             signalingSocket.onopen = () => {
