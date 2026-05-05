@@ -30,7 +30,7 @@ For each remote peer:
 - Create `RTCPeerConnection` with STUN servers
 - Add all local audio tracks
 - Send ICE candidates via signaling as `{ type: "ice-candidate", candidate, target }`
-- On remote track: create `<audio autoplay controls>` element, attach stream
+- On remote track: clone `<template id="peer-template">` (contains `<audio autoplay>`, mute button, volume slider), attach stream to `<audio>` element
 
 ### SDP exchange
 

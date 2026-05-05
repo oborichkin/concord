@@ -16,15 +16,23 @@ class Peer {
     constructor(id) {
         // Basic
         this.id = id;
-        // DOM
-        // TODO причесать
-        this.element = document.createElement("div");
-        this.element.appendChild(document.createTextNode(this.id));
-        this.audioElement = document.createElement("audio");
-        this.audioElement.controls = true
-        this.audioElement.autoplay = true
-        this.element.appendChild(this.audioElement);
-        peersDiv.appendChild(this.element);
+        const node = document.getElementById("peer-template").content.cloneNode(true);
+        this.element = node.querySelector("article");
+        this.element.querySelector(".peer-name").textContent = this.id;
+        this.audioElement = node.querySelector("audio");
+        this.muteBtn = node.querySelector(".mute-btn");
+        this.volumeSlider = node.querySelector(".volume");
+
+        this.muteBtn.addEventListener("click", () => {
+            this.audioElement.muted = !this.audioElement.muted;
+            this.muteBtn.textContent = this.audioElement.muted ? "Unmute" : "Mute";
+        });
+
+        this.volumeSlider.addEventListener("input", () => {
+            this.audioElement.volume = this.volumeSlider.value;
+        });
+
+        peersDiv.appendChild(node);
         // Peer
         this.pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
         localStream.getAudioTracks().forEach(track => this.pc.addTrack(track));
@@ -41,7 +49,6 @@ class Peer {
 
         this.pc.ontrack = (event) => {
             this.audioElement.srcObject = event.streams[0] || new MediaStream([event.track]);
-            this.audioElement.volume = 1
             this.audioElement.play()
                 .catch((reason) => {})
         }

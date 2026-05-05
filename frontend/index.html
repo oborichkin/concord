@@ -8,9 +8,16 @@
 <body>
     <h1>Concord</h1>
 
-    <div id="peers">
-
-    </div>
+    <section id="peers">
+        <template id="peer-template">
+            <article>
+                <h2 class="peer-name"></h2>
+                <audio autoplay></audio>
+                <button class="mute-btn" type="button">Mute</button>
+                <input type="range" class="volume" min="0" max="1" step="0.1" value="1">
+            </article>
+        </template>
+    </section>
 
     <script src="client.js"></script>
 </body>
