@@ -142,6 +142,90 @@ async function run() {
         await close(c2.ws);
     });
 
+    log('offer/answer/ice exchange:');
+    await check('forwards answer to correct peer', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        const w2 = await c2.recv();
+        await c1.recv();
+        c1.ws.send(JSON.stringify({ target: w2.id, type: 'answer', sdp: 'fake-answer-sdp' }));
+        const received = await c2.recv();
+        assertEqual(received.type, 'answer', 'type');
+        assertEqual(received.sdp, 'fake-answer-sdp', 'sdp');
+        assertEqual(received.user, w1.id, 'user');
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
+    await check('forwards ice candidate to correct peer', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        const w2 = await c2.recv();
+        await c1.recv();
+        c2.ws.send(JSON.stringify({
+            target: w1.id,
+            type: 'ice-candidate',
+            candidate: { candidate: 'fake-candidate', sdpMid: '0', sdpMLineIndex: 0 },
+        }));
+        const received = await c1.recv();
+        assertEqual(received.type, 'ice-candidate', 'type');
+        assertEqual(received.candidate.candidate, 'fake-candidate', 'candidate');
+        assertEqual(received.user, w2.id, 'user');
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
+    await check('full offer/answer/ice exchange between two peers', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        const w2 = await c2.recv();
+        await c1.recv();
+
+        c1.ws.send(JSON.stringify({ target: w2.id, type: 'offer', sdp: 'offer-sdp' }));
+        const offer = await c2.recv();
+        assertEqual(offer.type, 'offer', 'offer type');
+        assertEqual(offer.sdp, 'offer-sdp', 'offer sdp');
+        assertEqual(offer.user, w1.id, 'offer sender');
+
+        c2.ws.send(JSON.stringify({ target: w1.id, type: 'answer', sdp: 'answer-sdp' }));
+        const answer = await c1.recv();
+        assertEqual(answer.type, 'answer', 'answer type');
+        assertEqual(answer.sdp, 'answer-sdp', 'answer sdp');
+        assertEqual(answer.user, w2.id, 'answer sender');
+
+        c1.ws.send(JSON.stringify({
+            target: w2.id,
+            type: 'ice-candidate',
+            candidate: { candidate: 'c1-candidate', sdpMid: '0' },
+        }));
+        const ice1 = await c2.recv();
+        assertEqual(ice1.type, 'ice-candidate', 'ice from c1 type');
+        assertEqual(ice1.candidate.candidate, 'c1-candidate', 'ice from c1 candidate');
+        assertEqual(ice1.user, w1.id, 'ice from c1 sender');
+
+        c2.ws.send(JSON.stringify({
+            target: w1.id,
+            type: 'ice-candidate',
+            candidate: { candidate: 'c2-candidate', sdpMid: '0' },
+        }));
+        const ice2 = await c1.recv();
+        assertEqual(ice2.type, 'ice-candidate', 'ice from c2 type');
+        assertEqual(ice2.candidate.candidate, 'c2-candidate', 'ice from c2 candidate');
+        assertEqual(ice2.user, w2.id, 'ice from c2 sender');
+
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
     log('broadcast messaging:');
     await check('broadcasts message to all other peers', async () => {
         const c1 = await connect(port);

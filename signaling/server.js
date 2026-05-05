@@ -2,10 +2,12 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocketServer } from 'ws';
 
-export function createServer({ port = 8080 } = {}) {
+export function createServer({ port = 8080, server = null } = {}) {
     const connections = new Map();
 
-    const wss = new WebSocketServer({ port });
+    const wss = server
+        ? new WebSocketServer({ server, path: '/ws/' })
+        : new WebSocketServer({ port });
 
     wss.on('connection', (ws) => {
 

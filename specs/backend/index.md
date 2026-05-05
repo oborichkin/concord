@@ -55,4 +55,4 @@ These are all targeted messages. The server does not inspect or validate their c
 
 ## Exports
 
-`createServer({ port })` — returns `{ wss, connections }`. Used by tests to spawn servers on random ports.
+`createServer({ port?, server? })` — returns `{ wss, connections }`. If `server` is provided, the WebSocket server attaches to that HTTP server at path `/ws/`; otherwise a new HTTP server is created on the given `port`.
