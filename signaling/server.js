@@ -2,6 +2,17 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocketServer } from 'ws';
 
+const EMOJIS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯',
+                '🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆',
+                '🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛',
+                '🦋','🐌','🐞','🐜','🪰','🪲','🪳','🦟','🦗','🕷️',
+                '🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞',
+                '🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅',
+                '🐆','🦓','🦍','🦧','🐘','🦛','🦏','🐪','🐫','🦒',
+                '🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙',
+                '🐐','🦌','🐕','🐩','🦮','🐈','🪶','🐓','🦃','🦤',
+                '🦚','🦜','🦢','🦩','🕊️','🐇','🦝','🦨','🦡','🦫'];
+
 export function createServer({ port = 8080, server = null } = {}) {
     const connections = new Map();
 
@@ -12,21 +23,24 @@ export function createServer({ port = 8080, server = null } = {}) {
     wss.on('connection', (ws) => {
 
         const id = uuidv4();
+        const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
 
         ws.send(JSON.stringify({
             "type": "welcome",
             "id": id,
-            "peers": [...connections.keys()],
+            "emoji": emoji,
+            "peers": [...connections.entries()].map(([peerId, conn]) => ({ id: peerId, emoji: conn.emoji })),
         }))
 
         connections.forEach((conn) => {
-            conn.send(JSON.stringify({
+            conn.ws.send(JSON.stringify({
                 "type": "user-joined",
                 "user": id,
+                "emoji": emoji,
             }))
         })
 
-        connections.set(id, ws);
+        connections.set(id, { ws, emoji });
 
         console.log('New client connected', id);
 
@@ -38,11 +52,11 @@ export function createServer({ port = 8080, server = null } = {}) {
                     const { target, ...messageData } = data;
                     messageData.user = id;
                     const targetConn = connections.get(target);
-                    if (targetConn) targetConn.send(JSON.stringify(messageData))
+                    if (targetConn) targetConn.ws.send(JSON.stringify(messageData))
                 } else {
                     connections
                         .forEach((conn, key) => {
-                            if (key != id) conn.send(message);
+                            if (key != id) conn.ws.send(message);
                         })
                 }
             } catch (error) {
@@ -54,7 +68,7 @@ export function createServer({ port = 8080, server = null } = {}) {
             console.log('Client disconnected');
             connections.delete(id)
             connections.forEach((conn) => {
-                conn.send(JSON.stringify({
+                conn.ws.send(JSON.stringify({
                     "type": "user-left",
                     "user": id,
                 }))

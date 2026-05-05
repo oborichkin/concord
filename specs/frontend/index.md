@@ -57,7 +57,8 @@ Full-mesh topology: each client establishes a direct RTCPeerConnection with ever
 
 On `welcome`, before creating any remote peer entries, render a self entry for the local user:
 
-- Clone `<template id="self-template">` (contains `<article class="self">`, `<h2 class="peer-name">`, mute button only)
+- Clone `<template id="self-template">` (contains `<article class="self">`, `<span class="peer-emoji">`, `<h2 class="peer-name">`, mute button only)
+- Display the assigned emoji in `.peer-emoji`
 - Display the user's own UUID as the name
 - No `<audio>` element, no volume slider (no need to hear or adjust yourself)
 - Marked with `class="self"` on the `<article>` for visual distinction
@@ -66,8 +67,8 @@ On `welcome`, before creating any remote peer entries, render a self entry for t
 
 ### Peer lifecycle
 
-1. **On `welcome`**: render self entry, then for each peer in `peers` array, create a `Peer` and send an SDP offer
-2. **On `user-joined`**: create a `Peer` (do not send offer — the newcomer will send one)
+1. **On `welcome`**: render self entry (with emoji from `message.emoji`), then for each peer in `peers` array (objects with `id` and `emoji`), create a `Peer` and send an SDP offer
+2. **On `user-joined`**: create a `Peer` with `message.emoji` (do not send offer — the newcomer will send one)
 3. **On `offer`**: from peer send answer.
 4. **On `user-left`**: destroy the `Peer` (close RTCPeerConnection, remove DOM element)
 
@@ -77,7 +78,7 @@ For each remote peer:
 - Create `RTCPeerConnection` with STUN servers
 - Add all local audio tracks
 - Send ICE candidates via signaling as `{ type: "ice-candidate", candidate, target }`
-- On remote track: clone `<template id="peer-template">` (contains `<audio autoplay>`, mute button, volume slider), attach stream to `<audio>` element
+- On remote track: clone `<template id="peer-template">` (contains `<span class="peer-emoji">`, `<audio autoplay>`, mute button, volume slider), set emoji, attach stream to `<audio>` element
 
 ### SDP exchange
 

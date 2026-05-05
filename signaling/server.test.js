@@ -88,29 +88,31 @@ async function run() {
     const port = server.wss.address().port;
 
     log('connection:');
-    await check('sends welcome with id and empty peers', async () => {
+    await check('sends welcome with id, emoji, and empty peers', async () => {
         const c = await connect(port);
         const msg = await c.recv();
         assertEqual(msg.type, 'welcome', 'type');
         assertEqual(typeof msg.id, 'string', 'id');
+        assertEqual(typeof msg.emoji, 'string', 'emoji type');
+        assertEqual(msg.emoji.length > 0, true, 'emoji non-empty');
         assertEqual(msg.peers, [], 'peers');
         c.ws.close();
         await close(c.ws);
     });
 
-    await check('sends welcome with existing peer IDs', async () => {
+    await check('sends welcome with existing peers including emoji', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
         const c2 = await connect(port);
         const w2 = await c2.recv();
-        assertEqual(w2.peers, [w1.id], 'peers');
+        assertEqual(w2.peers, [{ id: w1.id, emoji: w1.emoji }], 'peers');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
         await close(c2.ws);
     });
 
-    await check('notifies existing peers when user joins', async () => {
+    await check('notifies existing peers when user joins with emoji', async () => {
         const c1 = await connect(port);
         await c1.recv();
         const c2 = await connect(port);
@@ -118,10 +120,23 @@ async function run() {
         const joined = await c1.recv();
         assertEqual(joined.type, 'user-joined', 'type');
         assertEqual(joined.user, w2.id, 'user');
+        assertEqual(joined.emoji, w2.emoji, 'emoji');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
         await close(c2.ws);
+    });
+
+    await check('assigns different emojis across connections', async () => {
+        const emojis = new Set();
+        for (let i = 0; i < 20; i++) {
+            const c = await connect(port);
+            const msg = await c.recv();
+            emojis.add(msg.emoji);
+            c.ws.close();
+            await close(c.ws);
+        }
+        assertEqual(emojis.size > 1, true, 'multiple emojis');
     });
 
     log('targeted messaging:');
@@ -306,7 +321,7 @@ async function run() {
         }
     }
 
-    for (const ws of server.connections.values()) ws.close();
+    for (const conn of server.connections.values()) conn.ws.close();
     await new Promise((resolve) => server.wss.close(resolve));
 
     log(`${passed} passed, ${failed} failed`);

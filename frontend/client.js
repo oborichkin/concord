@@ -10,9 +10,10 @@ let signalingSocket = null;
 
 let peers = new Map();
 
-function renderSelf(id) {
+function renderSelf(id, emoji) {
     const node = document.getElementById("self-template").content.cloneNode(true);
     const article = node.querySelector("article");
+    article.querySelector(".peer-emoji").textContent = emoji;
     article.querySelector(".peer-name").textContent = id;
     const muteBtn = node.querySelector(".mute-btn");
     muteBtn.addEventListener("click", () => {
@@ -25,11 +26,11 @@ function renderSelf(id) {
 
 class Peer {
 
-    constructor(id) {
-        // Basic
+    constructor(id, emoji) {
         this.id = id;
         const node = document.getElementById("peer-template").content.cloneNode(true);
         this.element = node.querySelector("article");
+        this.element.querySelector(".peer-emoji").textContent = emoji;
         this.element.querySelector(".peer-name").textContent = this.id;
         this.audioElement = node.querySelector("audio");
         this.muteBtn = node.querySelector(".mute-btn");
@@ -95,15 +96,15 @@ async function handleMessage(message) {
     console.log('Received message:', message);
     switch (message.type) {
         case "welcome":
-            renderSelf(message.id);
-            message.peers.forEach(id => {
-                const peer = new Peer(id)
-                peers.set(id, peer)
-                peer.pc.createOffer()
+            renderSelf(message.id, message.emoji);
+            message.peers.forEach(peer => {
+                const p = new Peer(peer.id, peer.emoji)
+                peers.set(peer.id, p)
+                p.pc.createOffer()
                     .then((offer) => {
-                        peer.pc.setLocalDescription(offer)
+                        p.pc.setLocalDescription(offer)
                             .then(() => {
-                                offer.target = id;
+                                offer.target = peer.id;
                                 signalingSocket.send(JSON.stringify(offer))
                             })
                     })
@@ -114,7 +115,7 @@ async function handleMessage(message) {
             peers.delete(message.user);
             break;
         case "user-joined":
-            peers.set(message.user, new Peer(message.user));
+            peers.set(message.user, new Peer(message.user, message.emoji));
             break;
         case "offer":
             await peers.get(message.user).handleOffer(message);

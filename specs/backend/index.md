@@ -1,19 +1,19 @@
 # Signaling Server Specification
 
-WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<uuid, WebSocket>`.
+WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<uuid, { ws, emoji }>`.
 
 ## Connection
 
-- Assign a UUID to each new WebSocket connection
+- Assign a UUID and a random emoji (from a predefined pool) to each new WebSocket connection
 - Send to the new peer:
   ```json
-  { "type": "welcome", "id": "<uuid>", "peers": ["<existing-uuid>", ...] }
+  { "type": "welcome", "id": "<uuid>", "emoji": "<emoji>", "peers": [{"id": "<existing-uuid>", "emoji": "<emoji>"}, ...] }
   ```
 - Broadcast to all existing peers:
   ```json
-  { "type": "user-joined", "user": "<new-uuid>" }
+  { "type": "user-joined", "user": "<new-uuid>", "emoji": "<emoji>" }
   ```
-- Then register the new peer in the connections map
+- Then register the new peer in the connections map (value: `{ ws, emoji }`)
 
 ## Message routing
 
@@ -23,17 +23,17 @@ Each incoming message is parsed as JSON. Two routing modes:
 
 - Strip `target` from the message
 - Add `user` field with the sender's UUID
-- Forward to `connections.get(target)`
+- Forward to `connections.get(target).ws`
 - If target does not exist: silently drop (no error, no crash)
 
 ### Broadcast (when `data.target` is absent)
 
-- Relay the raw message string to every peer except the sender
+- Relay the raw message string to every peer except the sender (via `conn.ws`)
 
 ## Disconnection
 
 - Remove the peer from the connections map
-- Broadcast to all remaining peers:
+- Broadcast to all remaining peers via `conn.ws`:
   ```json
   { "type": "user-left", "user": "<disconnected-uuid>" }
   ```
