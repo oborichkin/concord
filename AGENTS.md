@@ -46,8 +46,9 @@ Specifications in `specs/` are the source of truth. When implementing or modifyi
 3. **Keep code and tests in sync with the spec** — implementation must match the spec; tests must cover most behavior described in the spec if possible.
 4. **Spec > code > tests** — if code and spec disagree, the spec wins. Update code to match. If tests and spec disagree, the spec wins. Update tests to match.
 
-### Test command
+### Test commands
 
-```sh
-cd signaling && npm test
-```
+Run tests when a feature is complete, not after every individual change.
+
+- **Integration tests** (signaling server): `cd signaling && npm test`
+- **E2E tests** (full stack, Playwright): `cd e2e && npm test`
