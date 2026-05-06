@@ -10,13 +10,27 @@ WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<u
 - If the generated nickname collides with an existing peer's nickname, append a numeric suffix starting at 2 (e.g. `Brave Whale 2`, `Brave Whale 3`)
 - Send to the new peer:
   ```json
-  { "type": "welcome", "id": "<uuid>", "emoji": "<emoji>", "name": "<nickname>", "peers": [{"id": "<existing-uuid>", "emoji": "<emoji>", "name": "<nickname>"}, ...] }
+  { "type": "welcome", "id": "<uuid>", "emoji": "<emoji>", "name": "<nickname>", "peers": [{"id": "<existing-uuid>", "emoji": "<emoji>", "name": "<nickname>"}, ...], "iceServers": [...] }
   ```
 - Broadcast to all existing peers:
   ```json
   { "type": "user-joined", "user": "<new-uuid>", "emoji": "<emoji>", "name": "<nickname>" }
   ```
 - Then register the new peer in the connections map (value: `{ ws, emoji, name }`)
+
+## ICE servers
+
+The `welcome` message includes an `iceServers` array for WebRTC peer connection configuration.
+
+When `TURN_SECRET` and `TURN_DOMAIN` environment variables are set (production):
+- Generates time-limited TURN credentials using HMAC-SHA1
+- Username format: `<expiry-timestamp>:concord` (expiry is 24 hours from now)
+- Credential: base64-encoded HMAC-SHA1 of the username using `TURN_SECRET` as the key
+- Includes three TURN entries: UDP, TCP, and TURNS (TLS over TCP)
+- Also includes a Google STUN server as fallback
+
+When `TURN_SECRET` or `TURN_DOMAIN` is not set (development):
+- Returns only `[{ urls: 'stun:stun.l.google.com:19302' }]`
 
 ## Rename
 

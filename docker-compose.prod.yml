@@ -20,8 +20,32 @@ services:
     build:
       context: ./signaling
       dockerfile: Dockerfile
+    environment:
+      - TURN_SECRET=${TURN_SECRET:-}
+      - TURN_DOMAIN=${DOMAIN:-}
     expose:
       - "8080"
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - caddy_data:/etc/caddy/certs:ro
+    environment:
+      - TURN_SECRET=${TURN_SECRET:-}
+      - DOMAIN=${DOMAIN:-}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        CRT=$$(find /etc/caddy/certs -name "$${DOMAIN}.crt" | head -1)
+        KEY=$$(find /etc/caddy/certs -name "$${DOMAIN}.key" | head -1)
+        ARGS="-c /etc/coturn/turnserver.conf --static-auth-secret=$${TURN_SECRET} --realm=$${DOMAIN}"
+        if [ -n "$$CRT" ] && [ -n "$$KEY" ]; then
+          ARGS="$$ARGS --cert=$$CRT --pkey=$$KEY"
+        fi
+        exec turnserver $$ARGS
     restart: unless-stopped
 
 volumes:

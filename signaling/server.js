@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocketServer } from 'ws';
+import { createHmac } from 'crypto';
 
 const EMOJIS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯',
                 '🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆',
@@ -44,6 +45,25 @@ function generateName(connections) {
     return `${base} ${suffix}`;
 }
 
+function getIceServers() {
+    const servers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const secret = process.env.TURN_SECRET;
+    const domain = process.env.TURN_DOMAIN;
+    if (secret && domain) {
+        const expiry = Math.floor(Date.now() / 1000) + 86400;
+        const username = `${expiry}:concord`;
+        const hmac = createHmac('sha1', secret);
+        hmac.update(username);
+        const credential = hmac.digest('base64');
+        servers.push(
+            { urls: `turn:${domain}:3478?transport=udp`, username, credential },
+            { urls: `turn:${domain}:3478?transport=tcp`, username, credential },
+            { urls: `turns:${domain}:5349?transport=tcp`, username, credential },
+        );
+    }
+    return servers;
+}
+
 export function createServer({ port = 8080, server = null } = {}) {
     const connections = new Map();
 
@@ -63,6 +83,7 @@ export function createServer({ port = 8080, server = null } = {}) {
             "emoji": emoji,
             "name": name,
             "peers": [...connections.entries()].map(([peerId, conn]) => ({ id: peerId, emoji: conn.emoji, name: conn.name })),
+            "iceServers": getIceServers(),
         }))
 
         connections.forEach((conn) => {

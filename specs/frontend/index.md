@@ -102,7 +102,8 @@ On receiving a `user-renamed` message:
 ### Peer connection setup
 
 For each remote peer:
-- Create `RTCPeerConnection` with STUN servers
+- Create `RTCPeerConnection` with ICE servers from the `welcome` message's `iceServers` field
+- On `welcome`, store `message.iceServers` as the active ICE server list; fallback to `[stun:stun.l.google.com:19302]` if not provided
 - Add all local audio tracks
 - Send ICE candidates via signaling as `{ type: "ice-candidate", candidate, target }`
 - On remote track: the `Peer` template (contains `<span class="peer-emoji">`, `<h2 class="peer-name">`, `<audio autoplay>`, mute button, volume slider) is already cloned in the constructor; attach stream to `<audio>` element

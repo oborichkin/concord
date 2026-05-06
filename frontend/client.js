@@ -1,7 +1,7 @@
 const ICE_SERVERS = [
-    { urls: 'stun:l.google.com:19302' },
-    { urls: 'stun:89.104.67.110:3478' },
+    { urls: 'stun:stun.l.google.com:19302' },
 ];
+let iceServers = ICE_SERVERS;
 const CONNECTION_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`;
 
 // Objects
@@ -177,7 +177,7 @@ class Peer extends PeerBase {
         });
 
         peersDiv.appendChild(this.element);
-        this.pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
+        this.pc = new RTCPeerConnection({iceServers: iceServers});
         localStream.getAudioTracks().forEach(track => this.pc.addTrack(track));
 
         this.pc.onicecandidate = (event) => {
@@ -230,6 +230,7 @@ async function handleMessage(message) {
     console.log('Received message:', message);
     switch (message.type) {
         case "welcome":
+            if (message.iceServers) iceServers = message.iceServers;
             selfUser = new Self(message.id, message.emoji, message.name);
             message.peers.forEach(peer => {
                 const p = new Peer(peer.id, peer.emoji, peer.name);

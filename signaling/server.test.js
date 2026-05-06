@@ -1,3 +1,4 @@
+import { createHmac } from 'crypto';
 import WebSocket from 'ws';
 import { createServer } from './server.js';
 
@@ -443,6 +444,66 @@ async function run() {
         assertEqual(c.ws.readyState, WebSocket.OPEN, 'readyState');
         c.ws.close();
         await close(c.ws);
+    });
+
+    log('ice servers:');
+    await check('includes iceServers with STUN fallback when no TURN env vars', async () => {
+        const c = await connect(port);
+        const msg = await c.recv();
+        assertEqual(Array.isArray(msg.iceServers), true, 'iceServers is array');
+        assertEqual(msg.iceServers.length >= 1, true, 'has at least one server');
+        assertEqual(msg.iceServers[0].urls, 'stun:stun.l.google.com:19302', 'stun fallback');
+        c.ws.close();
+        await close(c.ws);
+    });
+
+    await check('includes TURN servers with credentials when env vars are set', async () => {
+        const secretServer = createServer({ port: 0 });
+        await onceListening(secretServer.wss);
+        const secretPort = secretServer.wss.address().port;
+
+        const originalSecret = process.env.TURN_SECRET;
+        const originalDomain = process.env.TURN_DOMAIN;
+        process.env.TURN_SECRET = 'test-secret';
+        process.env.TURN_DOMAIN = 'turn.example.com';
+
+        try {
+            const c = await connect(secretPort);
+            const msg = await c.recv();
+            assertEqual(Array.isArray(msg.iceServers), true, 'iceServers is array');
+            assertEqual(msg.iceServers.length, 4, '4 servers (1 stun + 3 turn)');
+
+            assertEqual(msg.iceServers[0].urls, 'stun:stun.l.google.com:19302', 'stun');
+
+            assertEqual(msg.iceServers[1].urls, 'turn:turn.example.com:3478?transport=udp', 'turn udp');
+            assertEqual(msg.iceServers[2].urls, 'turn:turn.example.com:3478?transport=tcp', 'turn tcp');
+            assertEqual(msg.iceServers[3].urls, 'turns:turn.example.com:5349?transport=tcp', 'turns tcp');
+
+            const turnEntry = msg.iceServers[1];
+            assertEqual(typeof turnEntry.username, 'string', 'username is string');
+            assertEqual(typeof turnEntry.credential, 'string', 'credential is string');
+            assertEqual(turnEntry.username.endsWith(':concord'), true, 'username suffix');
+
+            const expiry = parseInt(turnEntry.username.split(':')[0], 10);
+            const now = Math.floor(Date.now() / 1000);
+            assertEqual(expiry > now, true, 'expiry is in the future');
+            assertEqual(expiry <= now + 86400, true, 'expiry within 24h');
+
+            const hmac = createHmac('sha1', 'test-secret');
+            hmac.update(turnEntry.username);
+            assertEqual(turnEntry.credential, hmac.digest('base64'), 'credential matches HMAC');
+
+            assertEqual(turnEntry.credential, msg.iceServers[2].credential, 'same credential across entries');
+            assertEqual(turnEntry.username, msg.iceServers[3].username, 'same username across entries');
+
+            c.ws.close();
+            await close(c.ws);
+        } finally {
+            process.env.TURN_SECRET = originalSecret;
+            process.env.TURN_DOMAIN = originalDomain;
+            for (const conn of secretServer.connections.values()) conn.ws.close();
+            await new Promise((resolve) => secretServer.wss.close(resolve));
+        }
     });
 
     if (failures.length > 0) {
