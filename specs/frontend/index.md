@@ -54,22 +54,42 @@ Themes are self-contained CSS files in `frontend/themes/`. The active theme is s
 
 Full-mesh topology: each client establishes a direct RTCPeerConnection with every other client.
 
+### Class hierarchy
+
+- `PeerBase` — base class for all peer entries. Handles template cloning and provides reactive `name` and `emoji` getters/setters that automatically update the DOM when changed.
+- `Self extends PeerBase` — the local user's entry. Handles local mute button (toggles `localStream` audio tracks).
+- `Peer extends PeerBase` — a remote peer entry. Handles WebRTC (`RTCPeerConnection`), remote audio, mute, and volume slider.
+
 ### Self entry
 
 On `welcome`, before creating any remote peer entries, render a self entry for the local user:
 
 - Clone `<template id="self-template">` (contains `<article class="self">`, `<span class="peer-emoji">`, `<h2 class="peer-name">`, mute button only)
-- Display the assigned emoji in `.peer-emoji`
-- Display the user's own UUID as the name
+- Set the assigned emoji and nickname via the `Self` class setters
+- UUID is stored internally but never displayed — the `.peer-name` element shows the server-assigned nickname
 - No `<audio>` element, no volume slider (no need to hear or adjust yourself)
 - Marked with `class="self"` on the `<article>` for visual distinction
 - Mute button toggles `localStream` audio tracks' `enabled` property (enables/disables microphone)
 - Button text: "Mute" when mic is active, "Unmute" when mic is disabled
 
+### Rename / Change emoji
+
+The self entry's emoji and name are editable inline:
+- Clicking on `.peer-emoji` or `.peer-name` in the self entry activates inline editing
+- The element's content is replaced with an `<input type="text">`, pre-filled with the current value
+- Enter commits the edit, Escape cancels (restores original value)
+- On commit: the client optimistically updates the display and sends a `{ type: "rename", name }` or `{ type: "rename", emoji }` signaling message
+- Empty values are rejected (edit is cancelled)
+
+On receiving a `user-renamed` message:
+- If the message's `user` matches the self entry's ID: update `name` and `emoji` on the self entry (unless currently being edited inline)
+- Otherwise: update `name` and `emoji` on the matching `Peer` entry
+- The `PeerBase` reactive setters automatically update the DOM
+
 ### Peer lifecycle
 
-1. **On `welcome`**: render self entry (with emoji from `message.emoji`), then for each peer in `peers` array (objects with `id` and `emoji`), create a `Peer` and send an SDP offer
-2. **On `user-joined`**: create a `Peer` with `message.emoji` (do not send offer — the newcomer will send one)
+1. **On `welcome`**: render self entry (with emoji and name from `message.emoji`/`message.name`), then for each peer in `peers` array (objects with `id`, `emoji`, and `name`), create a `Peer` and send an SDP offer
+2. **On `user-joined`**: create a `Peer` with `message.emoji` and `message.name` (do not send offer — the newcomer will send one)
 3. **On `offer`**: from peer send answer.
 4. **On `user-left`**: destroy the `Peer` (close RTCPeerConnection, remove DOM element)
 
@@ -79,7 +99,7 @@ For each remote peer:
 - Create `RTCPeerConnection` with STUN servers
 - Add all local audio tracks
 - Send ICE candidates via signaling as `{ type: "ice-candidate", candidate, target }`
-- On remote track: clone `<template id="peer-template">` (contains `<span class="peer-emoji">`, `<audio autoplay>`, mute button, volume slider), set emoji, attach stream to `<audio>` element
+- On remote track: the `Peer` template (contains `<span class="peer-emoji">`, `<h2 class="peer-name">`, `<audio autoplay>`, mute button, volume slider) is already cloned in the constructor; attach stream to `<audio>` element
 
 ### SDP exchange
 

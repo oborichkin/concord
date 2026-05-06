@@ -1,19 +1,43 @@
 # Signaling Server Specification
 
-WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<uuid, { ws, emoji }>`.
+WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<uuid, { ws, emoji, name }>`.
 
 ## Connection
 
-- Assign a UUID and a random emoji (from a predefined pool) to each new WebSocket connection
+- Assign a UUID, a random emoji (from a predefined pool), and a randomly generated nickname to each new WebSocket connection
+- Nicknames are in the format `<Adjective> <Noun>` (Title Case, space-separated), e.g. `Brave Whale`, `Calm Panda`
+- Nicknames are generated from a predefined list of ~50 adjectives and ~100 nouns
+- If the generated nickname collides with an existing peer's nickname, append a numeric suffix starting at 2 (e.g. `Brave Whale 2`, `Brave Whale 3`)
 - Send to the new peer:
   ```json
-  { "type": "welcome", "id": "<uuid>", "emoji": "<emoji>", "peers": [{"id": "<existing-uuid>", "emoji": "<emoji>"}, ...] }
+  { "type": "welcome", "id": "<uuid>", "emoji": "<emoji>", "name": "<nickname>", "peers": [{"id": "<existing-uuid>", "emoji": "<emoji>", "name": "<nickname>"}, ...] }
   ```
 - Broadcast to all existing peers:
   ```json
-  { "type": "user-joined", "user": "<new-uuid>", "emoji": "<emoji>" }
+  { "type": "user-joined", "user": "<new-uuid>", "emoji": "<emoji>", "name": "<nickname>" }
   ```
-- Then register the new peer in the connections map (value: `{ ws, emoji }`)
+- Then register the new peer in the connections map (value: `{ ws, emoji, name }`)
+
+## Rename
+
+A connected peer may change their display name and/or emoji:
+
+```json
+{ "type": "rename", "name": "<new-name>" }
+{ "type": "rename", "emoji": "<new-emoji>" }
+{ "type": "rename", "name": "<new-name>", "emoji": "<new-emoji>" }
+```
+
+- At least one of `name` or `emoji` must be present
+- `name` must be a non-empty string (max 64 characters); otherwise it is ignored
+- `emoji` must be a non-empty string (max 32 characters); otherwise it is ignored
+- Duplicate names are allowed (no uniqueness enforcement on rename)
+- Server updates the connection's stored name/emoji
+- Server broadcasts to all connections (including the sender):
+  ```json
+  { "type": "user-renamed", "user": "<uuid>", "name": "<current-name>", "emoji": "<current-emoji>" }
+  ```
+- The broadcast always includes both `name` and `emoji` (the full current identity)
 
 ## Message routing
 

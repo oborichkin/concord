@@ -88,31 +88,33 @@ async function run() {
     const port = server.wss.address().port;
 
     log('connection:');
-    await check('sends welcome with id, emoji, and empty peers', async () => {
+    await check('sends welcome with id, emoji, name, and empty peers', async () => {
         const c = await connect(port);
         const msg = await c.recv();
         assertEqual(msg.type, 'welcome', 'type');
         assertEqual(typeof msg.id, 'string', 'id');
         assertEqual(typeof msg.emoji, 'string', 'emoji type');
         assertEqual(msg.emoji.length > 0, true, 'emoji non-empty');
+        assertEqual(typeof msg.name, 'string', 'name type');
+        assertEqual(msg.name.length > 0, true, 'name non-empty');
         assertEqual(msg.peers, [], 'peers');
         c.ws.close();
         await close(c.ws);
     });
 
-    await check('sends welcome with existing peers including emoji', async () => {
+    await check('sends welcome with existing peers including emoji and name', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
         const c2 = await connect(port);
         const w2 = await c2.recv();
-        assertEqual(w2.peers, [{ id: w1.id, emoji: w1.emoji }], 'peers');
+        assertEqual(w2.peers, [{ id: w1.id, emoji: w1.emoji, name: w1.name }], 'peers');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
         await close(c2.ws);
     });
 
-    await check('notifies existing peers when user joins with emoji', async () => {
+    await check('notifies existing peers when user joins with emoji and name', async () => {
         const c1 = await connect(port);
         await c1.recv();
         const c2 = await connect(port);
@@ -121,6 +123,7 @@ async function run() {
         assertEqual(joined.type, 'user-joined', 'type');
         assertEqual(joined.user, w2.id, 'user');
         assertEqual(joined.emoji, w2.emoji, 'emoji');
+        assertEqual(joined.name, w2.name, 'name');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
@@ -137,6 +140,30 @@ async function run() {
             await close(c.ws);
         }
         assertEqual(emojis.size > 1, true, 'multiple emojis');
+    });
+
+    await check('assigns unique names across concurrent connections', async () => {
+        const clients = [];
+        const names = [];
+        for (let i = 0; i < 20; i++) {
+            const c = await connect(port);
+            const msg = await c.recv();
+            names.push(msg.name);
+            clients.push(c);
+        }
+        assertEqual(new Set(names).size, names.length, 'all names unique');
+        for (const c of clients) {
+            c.ws.close();
+            await close(c.ws);
+        }
+    });
+
+    await check('name follows Adjective Noun format', async () => {
+        const c = await connect(port);
+        const msg = await c.recv();
+        assertEqual(/^[A-Z][a-z]+ [A-Z][a-z]+( \d+)?$/.test(msg.name), true, 'name format');
+        c.ws.close();
+        await close(c.ws);
     });
 
     log('targeted messaging:');
@@ -282,6 +309,119 @@ async function run() {
         assertEqual(server.connections.size, 1, 'connections');
         c2.ws.close();
         await close(c2.ws);
+    });
+
+    log('rename:');
+    await check('renames name and broadcasts to all peers', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        await c2.recv();
+        await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', name: 'New Name' }));
+        const renamed1 = await c1.recv();
+        const renamed2 = await c2.recv();
+        assertEqual(renamed1.type, 'user-renamed', 'self type');
+        assertEqual(renamed1.user, w1.id, 'self user');
+        assertEqual(renamed1.name, 'New Name', 'self name');
+        assertEqual(renamed1.emoji, w1.emoji, 'self emoji unchanged');
+        assertEqual(renamed2.type, 'user-renamed', 'peer type');
+        assertEqual(renamed2.user, w1.id, 'peer user');
+        assertEqual(renamed2.name, 'New Name', 'peer name');
+        assertEqual(renamed2.emoji, w1.emoji, 'peer emoji unchanged');
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
+    await check('renames emoji and broadcasts to all peers', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        await c2.recv();
+        await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', emoji: '🐉' }));
+        const renamed1 = await c1.recv();
+        const renamed2 = await c2.recv();
+        assertEqual(renamed1.type, 'user-renamed', 'type');
+        assertEqual(renamed1.emoji, '🐉', 'emoji');
+        assertEqual(renamed1.name, w1.name, 'name unchanged');
+        assertEqual(renamed2.emoji, '🐉', 'peer emoji');
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
+    await check('renames both name and emoji at once', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', name: 'Cool Cat', emoji: '😺' }));
+        const renamed = await c1.recv();
+        assertEqual(renamed.name, 'Cool Cat', 'name');
+        assertEqual(renamed.emoji, '😺', 'emoji');
+        assertEqual(server.connections.get(w1.id).name, 'Cool Cat', 'stored name');
+        assertEqual(server.connections.get(w1.id).emoji, '😺', 'stored emoji');
+        c1.ws.close();
+        await close(c1.ws);
+    });
+
+    await check('ignores empty name', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', name: '' }));
+        await pollUntil(() => captured.some(c => c.level === 'log'));
+        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
+        c1.ws.close();
+        await close(c1.ws);
+    });
+
+    await check('ignores non-string name', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', name: 123 }));
+        await pollUntil(() => captured.some(c => c.level === 'log'));
+        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
+        c1.ws.close();
+        await close(c1.ws);
+    });
+
+    await check('allows duplicate names', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        const c2 = await connect(port);
+        await c2.recv();
+        await c1.recv();
+        c2.ws.send(JSON.stringify({ type: 'rename', name: w1.name }));
+        const r1 = await c1.recv();
+        const r2 = await c2.recv();
+        assertEqual(r1.name, w1.name, 'duplicate name broadcast');
+        assertEqual(r2.name, w1.name, 'duplicate name self');
+        c1.ws.close();
+        c2.ws.close();
+        await close(c1.ws);
+        await close(c2.ws);
+    });
+
+    await check('ignores rename with no fields', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename' }));
+        await new Promise(r => setTimeout(r, 50));
+        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
+        c1.ws.close();
+        await close(c1.ws);
+    });
+
+    await check('ignores rename with overly long name', async () => {
+        const c1 = await connect(port);
+        const w1 = await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'rename', name: 'x'.repeat(65) }));
+        await new Promise(r => setTimeout(r, 50));
+        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
+        c1.ws.close();
+        await close(c1.ws);
     });
 
     log('error handling:');

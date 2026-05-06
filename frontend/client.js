@@ -9,32 +9,94 @@ let localStream = null;
 let signalingSocket = null;
 
 let peers = new Map();
+let selfUser = null;
+let peersDiv = document.getElementById('peers');
 
-function renderSelf(id, emoji) {
-    const node = document.getElementById("self-template").content.cloneNode(true);
-    const article = node.querySelector("article");
-    article.querySelector(".peer-emoji").textContent = emoji;
-    article.querySelector(".peer-name").textContent = id;
-    const muteBtn = node.querySelector(".mute-btn");
-    muteBtn.addEventListener("click", () => {
-        const muted = muteBtn.textContent === "Mute";
-        localStream.getAudioTracks().forEach(track => track.enabled = !muted);
-        muteBtn.textContent = muted ? "Unmute" : "Mute";
-    });
-    peersDiv.prepend(node);
+class PeerBase {
+    constructor(templateId) {
+        const node = document.getElementById(templateId).content.cloneNode(true);
+        this.element = node.querySelector("article");
+    }
+
+    set name(value) {
+        this._name = value;
+        this.element.querySelector(".peer-name").textContent = value;
+    }
+
+    get name() {
+        return this._name;
+    }
+
+    set emoji(value) {
+        this._emoji = value;
+        this.element.querySelector(".peer-emoji").textContent = value;
+    }
+
+    get emoji() {
+        return this._emoji;
+    }
 }
 
-class Peer {
-
-    constructor(id, emoji) {
+class Self extends PeerBase {
+    constructor(id, emoji, name) {
+        super("self-template");
         this.id = id;
-        const node = document.getElementById("peer-template").content.cloneNode(true);
-        this.element = node.querySelector("article");
-        this.element.querySelector(".peer-emoji").textContent = emoji;
-        this.element.querySelector(".peer-name").textContent = this.id;
-        this.audioElement = node.querySelector("audio");
-        this.muteBtn = node.querySelector(".mute-btn");
-        this.volumeSlider = node.querySelector(".volume");
+        this.emoji = emoji;
+        this.name = name;
+        peersDiv.prepend(this.element);
+        const muteBtn = this.element.querySelector(".mute-btn");
+        muteBtn.addEventListener("click", () => {
+            const muted = muteBtn.textContent === "Mute";
+            localStream.getAudioTracks().forEach(track => track.enabled = !muted);
+            muteBtn.textContent = muted ? "Unmute" : "Mute";
+        });
+
+        const emojiEl = this.element.querySelector(".peer-emoji");
+        const nameEl = this.element.querySelector(".peer-name");
+        emojiEl.addEventListener("click", () => this._editField("emoji", emojiEl));
+        nameEl.addEventListener("click", () => this._editField("name", nameEl));
+    }
+
+    _editField(field, el) {
+        if (el.querySelector("input")) return;
+        const currentValue = this[`_${field}`];
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = currentValue;
+        input.maxLength = field === "name" ? 64 : 32;
+        el.textContent = "";
+        el.appendChild(input);
+        input.focus();
+        input.select();
+
+        const commit = () => {
+            const value = input.value.trim();
+            if (value && value !== currentValue) {
+                this[field] = value;
+                signalingSocket.send(JSON.stringify({ type: "rename", [field]: value }));
+            } else {
+                el.textContent = currentValue;
+            }
+        };
+
+        input.addEventListener("blur", commit, { once: true });
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") input.blur();
+            if (e.key === "Escape") { input.value = currentValue; input.blur(); }
+        });
+    }
+}
+
+class Peer extends PeerBase {
+
+    constructor(id, emoji, name) {
+        super("peer-template");
+        this.id = id;
+        this.emoji = emoji;
+        this.name = name;
+        this.audioElement = this.element.querySelector("audio");
+        this.muteBtn = this.element.querySelector(".mute-btn");
+        this.volumeSlider = this.element.querySelector(".volume");
 
         this.muteBtn.addEventListener("click", () => {
             this.audioElement.muted = !this.audioElement.muted;
@@ -45,8 +107,7 @@ class Peer {
             this.audioElement.volume = this.volumeSlider.value;
         });
 
-        peersDiv.appendChild(node);
-        // Peer
+        peersDiv.appendChild(this.element);
         this.pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
         localStream.getAudioTracks().forEach(track => this.pc.addTrack(track));
 
@@ -96,16 +157,13 @@ class Peer {
     }
 }
 
-// DOM Elements
-let peersDiv = document.getElementById('peers');
-
 async function handleMessage(message) {
     console.log('Received message:', message);
     switch (message.type) {
         case "welcome":
-            renderSelf(message.id, message.emoji);
+            selfUser = new Self(message.id, message.emoji, message.name);
             message.peers.forEach(peer => {
-                const p = new Peer(peer.id, peer.emoji);
+                const p = new Peer(peer.id, peer.emoji, peer.name);
                 peers.set(peer.id, p);
                 p.createAndSendOffer().catch(console.error);
             });
@@ -115,7 +173,7 @@ async function handleMessage(message) {
             peers.delete(message.user);
             break;
         case "user-joined":
-            peers.set(message.user, new Peer(message.user, message.emoji));
+            peers.set(message.user, new Peer(message.user, message.emoji, message.name));
             break;
         case "offer":
             await peers.get(message.user).handleOffer(message);
@@ -125,6 +183,22 @@ async function handleMessage(message) {
             break;
         case "ice-candidate":
             await peers.get(message.user).addIceCandidate(message.candidate);
+            break;
+        case "user-renamed":
+            if (selfUser && message.user === selfUser.id) {
+                selfUser._name = message.name;
+                selfUser._emoji = message.emoji;
+                const nameEl = selfUser.element.querySelector(".peer-name");
+                const emojiEl = selfUser.element.querySelector(".peer-emoji");
+                if (!nameEl.querySelector("input")) nameEl.textContent = message.name;
+                if (!emojiEl.querySelector("input")) emojiEl.textContent = message.emoji;
+            } else {
+                const peer = peers.get(message.user);
+                if (peer) {
+                    peer.name = message.name;
+                    peer.emoji = message.emoji;
+                }
+            }
             break;
         default:
             // console.warn("Unexpected message", message);
