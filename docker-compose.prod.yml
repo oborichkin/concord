@@ -29,6 +29,7 @@ services:
 
   coturn:
     image: coturn/coturn:latest
+    user: "0:0"
     network_mode: host
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
