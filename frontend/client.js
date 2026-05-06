@@ -53,7 +53,7 @@ class Self extends PeerBase {
 
         const emojiEl = this.element.querySelector(".peer-emoji");
         const nameEl = this.element.querySelector(".peer-name");
-        emojiEl.addEventListener("click", () => this._editField("emoji", emojiEl));
+        emojiEl.addEventListener("click", () => this._openEmojiPicker(emojiEl));
         nameEl.addEventListener("click", () => this._editField("name", nameEl));
     }
 
@@ -63,7 +63,7 @@ class Self extends PeerBase {
         const input = document.createElement("input");
         input.type = "text";
         input.value = currentValue;
-        input.maxLength = field === "name" ? 64 : 32;
+        input.maxLength = 64;
         el.textContent = "";
         el.appendChild(input);
         input.focus();
@@ -84,6 +84,75 @@ class Self extends PeerBase {
             if (e.key === "Enter") input.blur();
             if (e.key === "Escape") { input.value = currentValue; input.blur(); }
         });
+    }
+
+    _openEmojiPicker(emojiEl) {
+        if (document.querySelector(".emoji-picker")) return;
+        const picker = document.createElement("div");
+        picker.className = "emoji-picker";
+
+        const categories = Object.keys(EMOJI_CATEGORIES);
+        const tabs = document.createElement("div");
+        tabs.className = "emoji-picker-tabs";
+        let activeCategory = categories[0];
+
+        const grid = document.createElement("div");
+        grid.className = "emoji-picker-grid";
+
+        const renderGrid = (category) => {
+            grid.textContent = "";
+            for (const emoji of EMOJI_CATEGORIES[category]) {
+                const span = document.createElement("span");
+                span.className = "emoji-picker-item";
+                span.textContent = emoji;
+                span.addEventListener("click", () => {
+                    this.emoji = emoji;
+                    signalingSocket.send(JSON.stringify({ type: "rename", emoji }));
+                    picker.remove();
+                });
+                grid.appendChild(span);
+            }
+        }
+
+        for (const cat of categories) {
+            const tab = document.createElement("button");
+            tab.type = "button";
+            tab.className = "emoji-picker-tab";
+            tab.textContent = EMOJI_CATEGORIES[cat][0];
+            tab.addEventListener("click", () => {
+                activeCategory = cat;
+                tabs.querySelectorAll(".emoji-picker-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                renderGrid(cat);
+            });
+            if (cat === activeCategory) tab.classList.add("active");
+            tabs.appendChild(tab);
+        }
+
+        picker.appendChild(tabs);
+        picker.appendChild(grid);
+        renderGrid(activeCategory);
+
+        emojiEl.parentElement.appendChild(picker);
+        picker.tabIndex = -1;
+        picker.focus();
+
+        const onClickOutside = (e) => {
+            if (!picker.contains(e.target) && e.target !== emojiEl) {
+                picker.remove();
+                document.removeEventListener("click", onClickOutside, true);
+                document.removeEventListener("keydown", onEscape);
+            }
+        };
+        const onEscape = (e) => {
+            if (e.key === "Escape") {
+                picker.remove();
+                document.removeEventListener("click", onClickOutside, true);
+                document.removeEventListener("keydown", onEscape);
+            }
+        };
+        setTimeout(() => document.addEventListener("click", onClickOutside, true), 0);
+        document.addEventListener("keydown", onEscape);
     }
 }
 
@@ -191,7 +260,7 @@ async function handleMessage(message) {
                 const nameEl = selfUser.element.querySelector(".peer-name");
                 const emojiEl = selfUser.element.querySelector(".peer-emoji");
                 if (!nameEl.querySelector("input")) nameEl.textContent = message.name;
-                if (!emojiEl.querySelector("input")) emojiEl.textContent = message.emoji;
+                if (!document.querySelector(".emoji-picker")) emojiEl.textContent = message.emoji;
             } else {
                 const peer = peers.get(message.user);
                 if (peer) {

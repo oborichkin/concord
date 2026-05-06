@@ -74,12 +74,18 @@ On `welcome`, before creating any remote peer entries, render a self entry for t
 
 ### Rename / Change emoji
 
-The self entry's emoji and name are editable inline:
-- Clicking on `.peer-emoji` or `.peer-name` in the self entry activates inline editing
-- The element's content is replaced with an `<input type="text">`, pre-filled with the current value
-- Enter commits the edit, Escape cancels (restores original value)
-- On commit: the client optimistically updates the display and sends a `{ type: "rename", name }` or `{ type: "rename", emoji }` signaling message
-- Empty values are rejected (edit is cancelled)
+The self entry's name and emoji are editable:
+- Clicking on `.peer-name` in the self entry activates inline editing (text input)
+  - Enter commits the edit, Escape cancels
+  - On commit: the client optimistically updates the display and sends a `{ type: "rename", name }` signaling message
+  - Empty values are rejected (edit is cancelled)
+- Clicking on `.peer-emoji` in the self entry opens an emoji picker panel
+  - The picker is a floating `<div class="emoji-picker">` positioned near the self entry
+  - Emoji data is loaded from `emojis.js`, which defines `EMOJI_CATEGORIES` — a map of category names to emoji arrays
+  - Category tabs (`.emoji-picker-tab`) at the top show the first emoji of each category as the tab label; clicking switches the grid
+  - An emoji grid (`.emoji-picker-grid`) displays emojis for the active category in a 10-column grid
+  - Clicking an emoji applies it immediately, closes the picker, and sends a `{ type: "rename", emoji }` signaling message
+  - Clicking outside the picker or pressing Escape closes it without changing
 
 On receiving a `user-renamed` message:
 - If the message's `user` matches the self entry's ID: update `name` and `emoji` on the self entry (unless currently being edited inline)
