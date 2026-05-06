@@ -72,20 +72,27 @@ class Peer {
         this.element.remove()
     }
 
+    async createAndSendOffer() {
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
+        offer.target = this.id;
+        signalingSocket.send(JSON.stringify(offer));
+    }
+
     async handleOffer(offer) {
-        await this.pc.setRemoteDescription(offer)
-        const answer = await this.pc.createAnswer()
-        await this.pc.setLocalDescription(answer)
-        answer.target = this.id
-        signalingSocket.send(JSON.stringify(answer))
+        await this.pc.setRemoteDescription(offer);
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+        answer.target = this.id;
+        signalingSocket.send(JSON.stringify(answer));
     }
 
     async addIceCandidate(candidate) {
-        await this.pc.addIceCandidate(candidate)
+        await this.pc.addIceCandidate(candidate);
     }
 
     async handleAnswer(answer) {
-        await this.pc.setRemoteDescription(answer)
+        await this.pc.setRemoteDescription(answer);
     }
 }
 
@@ -98,16 +105,9 @@ async function handleMessage(message) {
         case "welcome":
             renderSelf(message.id, message.emoji);
             message.peers.forEach(peer => {
-                const p = new Peer(peer.id, peer.emoji)
-                peers.set(peer.id, p)
-                p.pc.createOffer()
-                    .then((offer) => {
-                        p.pc.setLocalDescription(offer)
-                            .then(() => {
-                                offer.target = peer.id;
-                                signalingSocket.send(JSON.stringify(offer))
-                            })
-                    })
+                const p = new Peer(peer.id, peer.emoji);
+                peers.set(peer.id, p);
+                p.createAndSendOffer().catch(console.error);
             });
             break;
         case "user-left":
@@ -133,38 +133,35 @@ async function handleMessage(message) {
 }
 
 async function connect() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            },
+            video: false,
+        });
+        localStream = stream;
+        window.localStream = stream;
 
-    // Stream setup
-    navigator.mediaDevices.getUserMedia({
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-        },
-        video: false,
-    })
-        .then((stream) => {
-            localStream = stream;
-            window.localStream = stream;
-            // Signaling socket setup
-            signalingSocket = new WebSocket(CONNECTION_URL);
-            signalingSocket.onopen = () => {
-                console.log('Connected to signaling server');
-            }
-            signalingSocket.onerror = (error) => {
-                console.error('Signaling error:', error);
-            }
-            signalingSocket.onclose = () => {
-                console.log('Signaling connection closed');
-            }
-            signalingSocket.onmessage = async (event) => {
-                const message = JSON.parse(event.data);
-                await handleMessage(message);
-            }
-        })
-        .catch((error) => {
-            console.error(error)
-        })
+        signalingSocket = new WebSocket(CONNECTION_URL);
+        signalingSocket.onopen = () => {
+            console.log('Connected to signaling server');
+        };
+        signalingSocket.onerror = (error) => {
+            console.error('Signaling error:', error);
+        };
+        signalingSocket.onclose = () => {
+            console.log('Signaling connection closed');
+        };
+        signalingSocket.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+            await handleMessage(message);
+        };
+    } catch (error) {
+        console.error(error);
+    }
 }
 
 connect()

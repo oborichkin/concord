@@ -43,6 +43,7 @@ Themes are self-contained CSS files in `frontend/themes/`. The active theme is s
 - Acquire local audio via `getUserMedia` with `echoCancellation`, `noiseSuppression`, `autoGainControl` enabled
 - Video is disabled for now (`video: false`)
 - No screen sharing for now
+- The local media stream must be assigned to `window.localStream` — the E2E tests access it via `page.evaluate()` to assert mute state. Do not remove this assignment.
 
 ## Signaling connection
 
