@@ -128,9 +128,10 @@ export function createServer({ port = 8080, server = null } = {}) {
                     const targetConn = connections.get(target);
                     if (targetConn) targetConn.ws.send(JSON.stringify(messageData))
                 } else {
+                    const raw = typeof message === 'string' ? message : String(message);
                     connections
                         .forEach((conn, key) => {
-                            if (key != id) conn.ws.send(message);
+                            if (key != id) conn.ws.send(raw);
                         })
                 }
             } catch (error) {

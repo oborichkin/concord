@@ -4,23 +4,33 @@ const ICE_SERVERS = [
 let iceServers = ICE_SERVERS;
 const CONNECTION_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`;
 
-// Objects
 let localStream = null;
+let localVideoStream = null;
 let signalingSocket = null;
 
 let peers = new Map();
+window.peers = peers;
 let selfUser = null;
 let peersDiv = document.getElementById('peers');
+let videosDiv = document.getElementById('videos');
+
+function updateVideoGrid() {
+    const hasVideos = videosDiv.querySelector('video');
+    videosDiv.classList.toggle('active', !!hasVideos);
+}
 
 class PeerBase {
     constructor(templateId) {
         const node = document.getElementById(templateId).content.cloneNode(true);
         this.element = node.querySelector("article");
+        this.videoCard = null;
+        this.videoElement = null;
     }
 
     set name(value) {
         this._name = value;
         this.element.querySelector(".peer-name").textContent = value;
+        if (this.videoCard) this.videoCard.querySelector(".video-name").textContent = value;
     }
 
     get name() {
@@ -34,6 +44,40 @@ class PeerBase {
 
     get emoji() {
         return this._emoji;
+    }
+
+    _showVideo(stream, options = {}) {
+        if (!this.videoCard) {
+            this.videoCard = document.createElement("div");
+            this.videoCard.className = "video-card" + (options.self ? " self-video" : "");
+            const video = document.createElement("video");
+            video.playsInline = true;
+            video.autoplay = true;
+            if (options.muted) video.muted = true;
+            this.videoCard.appendChild(video);
+            const caption = document.createElement("span");
+            caption.className = "video-name";
+            caption.textContent = this.name;
+            this.videoCard.appendChild(caption);
+            videosDiv.appendChild(this.videoCard);
+            this.videoElement = video;
+        }
+        this.videoElement.srcObject = stream;
+        this.videoElement.play().catch(() => {});
+        updateVideoGrid();
+    }
+
+    _hideVideo() {
+        if (this._remoteVideoTrack) {
+            this._remoteVideoTrack.onunmute = null;
+            this._remoteVideoTrack = null;
+        }
+        if (this.videoCard) {
+            this.videoCard.remove();
+            this.videoCard = null;
+            this.videoElement = null;
+        }
+        updateVideoGrid();
     }
 }
 
@@ -51,10 +95,74 @@ class Self extends PeerBase {
             muteBtn.textContent = muted ? "Unmute" : "Mute";
         });
 
+        const cameraBtn = this.element.querySelector(".camera-btn");
+        this._cameraStarting = false;
+        cameraBtn.addEventListener("click", () => {
+            if (this._cameraStarting) return;
+            if (localVideoStream) {
+                this._stopCamera();
+            } else {
+                this._startCamera();
+            }
+        });
+
         const emojiEl = this.element.querySelector(".peer-emoji");
         const nameEl = this.element.querySelector(".peer-name");
         emojiEl.addEventListener("click", () => this._openEmojiPicker(emojiEl));
         nameEl.addEventListener("click", () => this._editField("name", nameEl));
+    }
+
+    set name(value) {
+        const nameEl = this.element.querySelector(".peer-name");
+        const input = nameEl.querySelector("input");
+        if (input) input.remove();
+        super.name = value;
+    }
+
+    set emoji(value) {
+        if (!document.querySelector(".emoji-picker")) {
+            super.emoji = value;
+        } else {
+            this._emoji = value;
+        }
+    }
+
+    async _startCamera() {
+        if (this._cameraStarting) return;
+        this._cameraStarting = true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            localVideoStream = stream;
+            window.localVideoStream = stream;
+            this._showVideo(stream, { self: true, muted: true });
+            const track = stream.getVideoTracks()[0];
+            for (const peer of peers.values()) {
+                await peer.videoSender.replaceTrack(track);
+            }
+            this.element.querySelector(".camera-btn").textContent = "Stop Camera";
+            for (const peer of peers.values()) {
+                signalingSocket.send(JSON.stringify({ type: "camera-on", target: peer.id }));
+            }
+        } catch (error) {
+            console.error('Failed to start camera:', error);
+        } finally {
+            this._cameraStarting = false;
+        }
+    }
+
+    async _stopCamera() {
+        if (!localVideoStream) return;
+        for (const peer of peers.values()) {
+            try {
+                await peer.videoSender.replaceTrack(null);
+            } catch (e) {}
+        }
+        localVideoStream.getTracks().forEach(t => t.stop());
+        localVideoStream = null;
+        window.localVideoStream = null;
+        this._hideVideo();
+        this.element.querySelector(".camera-btn").textContent = "Camera";
+        signalingSocket.send(JSON.stringify({ type: "camera-off", user: selfUser.id }));
     }
 
     _editField(field, el) {
@@ -179,6 +287,12 @@ class Peer extends PeerBase {
         peersDiv.appendChild(this.element);
         this.pc = new RTCPeerConnection({iceServers: iceServers});
         localStream.getAudioTracks().forEach(track => this.pc.addTrack(track));
+        const videoTransceiver = this.pc.addTransceiver('video', { direction: 'sendrecv' });
+        this.videoSender = videoTransceiver.sender;
+        this._videoTransceiver = videoTransceiver;
+        if (localVideoStream) {
+            this.videoSender.replaceTrack(localVideoStream.getVideoTracks()[0]).catch(() => {});
+        }
 
         this.pc.onicecandidate = (event) => {
             if (event.candidate) {
@@ -191,18 +305,38 @@ class Peer extends PeerBase {
         }
 
         this.pc.ontrack = (event) => {
-            this.audioElement.srcObject = event.streams[0] || new MediaStream([event.track]);
-            this.audioElement.play()
-                .catch((reason) => {})
+            if (event.track.kind === 'audio') {
+                this.audioElement.srcObject = event.streams[0] || new MediaStream([event.track]);
+                this.audioElement.play().catch(() => {});
+            }
         }
     }
 
     destroy() {
-        this.pc.close()
-        this.element.remove()
+        this.pc.close();
+        this._hideVideo();
+        this.element.remove();
+    }
+
+    showRemoteVideo() {
+        const track = this._videoTransceiver.receiver.track;
+        this._remoteVideoTrack = track;
+        if (track.muted) {
+            this._showVideo(new MediaStream([track]));
+            track.onunmute = () => {
+                if (this.videoElement) {
+                    this.videoElement.srcObject = new MediaStream([track]);
+                    this.videoElement.play().catch(() => {});
+                }
+                track.onunmute = null;
+            };
+        } else {
+            this._showVideo(new MediaStream([track]));
+        }
     }
 
     async createAndSendOffer() {
+        this._videoTransceiver.direction = 'sendrecv';
         const offer = await this.pc.createOffer();
         await this.pc.setLocalDescription(offer);
         offer.target = this.id;
@@ -211,6 +345,7 @@ class Peer extends PeerBase {
 
     async handleOffer(offer) {
         await this.pc.setRemoteDescription(offer);
+        this._videoTransceiver.direction = 'sendrecv';
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
         answer.target = this.id;
@@ -222,6 +357,7 @@ class Peer extends PeerBase {
     }
 
     async handleAnswer(answer) {
+        if (this.pc.signalingState !== 'have-local-offer') return;
         await this.pc.setRemoteDescription(answer);
     }
 }
@@ -244,6 +380,9 @@ async function handleMessage(message) {
             break;
         case "user-joined":
             peers.set(message.user, new Peer(message.user, message.emoji, message.name));
+            if (localVideoStream) {
+                signalingSocket.send(JSON.stringify({ type: "camera-on", target: message.user }));
+            }
             break;
         case "offer":
             await peers.get(message.user).handleOffer(message);
@@ -254,14 +393,16 @@ async function handleMessage(message) {
         case "ice-candidate":
             await peers.get(message.user).addIceCandidate(message.candidate);
             break;
+        case "camera-on":
+            peers.get(message.user)?.showRemoteVideo();
+            break;
+        case "camera-off":
+            peers.get(message.user)?._hideVideo();
+            break;
         case "user-renamed":
             if (selfUser && message.user === selfUser.id) {
-                selfUser._name = message.name;
-                selfUser._emoji = message.emoji;
-                const nameEl = selfUser.element.querySelector(".peer-name");
-                const emojiEl = selfUser.element.querySelector(".peer-emoji");
-                if (!nameEl.querySelector("input")) nameEl.textContent = message.name;
-                if (!document.querySelector(".emoji-picker")) emojiEl.textContent = message.emoji;
+                selfUser.name = message.name;
+                selfUser.emoji = message.emoji;
             } else {
                 const peer = peers.get(message.user);
                 if (peer) {

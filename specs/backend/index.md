@@ -88,8 +88,10 @@ Each incoming message is parsed as JSON. Two routing modes:
 | `offer` | sender → target | `sdp`, `target` | SDP offer |
 | `answer` | sender → target | `sdp`, `target` | SDP answer |
 | `ice-candidate` | sender → target | `candidate`, `target` | ICE candidate |
+| `camera-on` | broadcast or sender → target | (optional `target`) | Camera enabled |
+| `camera-off` | broadcast | `user` | Camera disabled |
 
-These are all targeted messages. The server does not inspect or validate their contents — it only routes them.
+All are routed by the server without inspecting contents — targeted (when `target` present) or broadcast (when absent).
 
 ## Exports
 

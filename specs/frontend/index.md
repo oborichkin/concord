@@ -8,6 +8,7 @@ The page uses semantic HTML only — no layout divs, no styling hooks. All prese
 
 - `<h1>` — application title ("Concord")
 - `<label>` with `<select id="theme-selector">` — theme picker (between title and peers section)
+- `<section id="videos">` — video grid for webcam feeds (hidden when empty)
 - `<section id="peers">` — contains peer templates and dynamically rendered peer articles
 - `<template id="self-template">` — self entry template
 - `<template id="peer-template">` — remote peer entry template
@@ -41,9 +42,35 @@ Themes are self-contained CSS files in `frontend/themes/`. The active theme is s
 ## Media
 
 - Acquire local audio via `getUserMedia` with `echoCancellation`, `noiseSuppression`, `autoGainControl` enabled
-- Video is disabled for now (`video: false`)
+- Video is optional and off by default — the user can toggle their webcam on/off via a "Camera" button in the self entry
 - No screen sharing for now
 - The local media stream must be assigned to `window.localStream` — the E2E tests access it via `page.evaluate()` to assert mute state. Do not remove this assignment.
+
+### Webcam sharing
+
+- The self entry has a "Camera" button alongside the mute button
+- Clicking "Camera" requests webcam access via `getUserMedia({ video: true })`, adds the video track to all existing peer connections, and shows a self-preview in the video grid
+- Clicking "Stop Camera" stops the video track (camera light turns off), removes video tracks from all peer connections, and hides the self-preview
+- When a remote peer's video track arrives, it is displayed in the video grid under that peer's name
+- The video grid (`<section id="videos">`) is hidden when no participants have camera enabled
+
+#### Video grid
+
+- `<section id="videos">` sits above `<section id="peers">` in the HTML
+- Hidden by default (no `active` class)
+- Gains class `active` when any participant (self or remote) has an active video track
+- Contains individual video cards, each with a `<video>` element and the peer's name
+- Self-preview `<video>` is muted (no audio feedback) and mirrored horizontally via CSS
+
+#### Camera toggling (signaling-driven, no renegotiation)
+
+- Each `RTCPeerConnection` pre-allocates a video transceiver via `addTransceiver('video', { direction: 'sendrecv' })` at creation time
+- The video m-line is always present in the SDP from the initial offer/answer — no renegotiation is ever needed for camera toggling
+- Camera on: `replaceTrack(videoTrack)` on the stored `videoSender`, then broadcast `{ type: "camera-on" }` via signaling
+- Camera off: `replaceTrack(null)` on the stored `videoSender`, then broadcast `{ type: "camera-off" }` via signaling
+- New peers joining after camera is enabled: `replaceTrack` in the constructor sends the video track in the initial offer, plus a targeted `{ type: "camera-on", target }` is sent to the new peer
+- On receiving `camera-on`: the remote peer calls `showRemoteVideo()` which attaches the pre-existing receiver stream to a video card
+- On receiving `camera-off`: the remote peer calls `_hideVideo()` which removes the video card
 
 ## Signaling connection
 
@@ -57,20 +84,25 @@ Full-mesh topology: each client establishes a direct RTCPeerConnection with ever
 ### Class hierarchy
 
 - `PeerBase` — base class for all peer entries. Handles template cloning and provides reactive `name` and `emoji` getters/setters that automatically update the DOM when changed.
-- `Self extends PeerBase` — the local user's entry. Handles local mute button (toggles `localStream` audio tracks).
+- `Self extends PeerBase` — the local user's entry. Handles local mute button (toggles `localStream` audio tracks) and camera toggle (starts/stops webcam, manages video grid self-preview).
 - `Peer extends PeerBase` — a remote peer entry. Handles WebRTC (`RTCPeerConnection`), remote audio, mute, and volume slider.
 
 ### Self entry
 
 On `welcome`, before creating any remote peer entries, render a self entry for the local user:
 
-- Clone `<template id="self-template">` (contains `<article class="self">`, `<span class="peer-emoji">`, `<h2 class="peer-name">`, mute button only)
+- Clone `<template id="self-template">` (contains `<article class="self">`, `<span class="peer-emoji">`, `<h2 class="peer-name">`, mute button, camera button)
 - Set the assigned emoji and nickname via the `Self` class setters
 - UUID is stored internally but never displayed — the `.peer-name` element shows the server-assigned nickname
 - No `<audio>` element, no volume slider (no need to hear or adjust yourself)
 - Marked with `class="self"` on the `<article>` for visual distinction
 - Mute button toggles `localStream` audio tracks' `enabled` property (enables/disables microphone)
 - Button text: "Mute" when mic is active, "Unmute" when mic is disabled
+- Camera button toggles webcam on/off
+  - "Camera" when webcam is off, "Stop Camera" when webcam is on
+  - On enable: calls `getUserMedia({ video: true })`, adds video tracks to all peer connections, shows self-preview in video grid
+  - On disable: stops video tracks, removes them from peer connections, hides self-preview from video grid
+  - Self-preview video is muted (no audio feedback) and mirrored via CSS
 
 ### Rename / Change emoji
 
@@ -105,8 +137,10 @@ For each remote peer:
 - Create `RTCPeerConnection` with ICE servers from the `welcome` message's `iceServers` field
 - On `welcome`, store `message.iceServers` as the active ICE server list; fallback to `[stun:stun.l.google.com:19302]` if not provided
 - Add all local audio tracks
+- Pre-allocate a video transceiver via `addTransceiver('video', { direction: 'sendrecv' })` so the video m-line is always in the SDP
+- If local webcam is active, set the video track on the transceiver's sender via `replaceTrack`
 - Send ICE candidates via signaling as `{ type: "ice-candidate", candidate, target }`
-- On remote track: the `Peer` template (contains `<span class="peer-emoji">`, `<h2 class="peer-name">`, `<audio autoplay>`, mute button, volume slider) is already cloned in the constructor; attach stream to `<audio>` element
+- On remote track: audio tracks are attached to `<audio>` element; video tracks show/hide via `mute`/`unmute` events on the track
 
 ### SDP exchange
 

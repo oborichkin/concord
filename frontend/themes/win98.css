@@ -101,6 +101,68 @@ input[type="range"] {
     box-sizing: border-box;
 }
 
+.camera-btn {
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #fff #404040 #404040 #fff;
+    padding: 2px 16px;
+    font-family: inherit;
+    font-size: 11px;
+    min-width: 75px;
+    cursor: pointer;
+}
+
+.camera-btn:active {
+    border-color: #404040 #fff #fff #404040;
+    padding: 3px 15px 1px 17px;
+}
+
+.camera-btn:focus {
+    outline: 1px dotted #000;
+    outline-offset: -4px;
+}
+
+#videos {
+    display: none;
+    padding: 12px;
+}
+
+#videos.active {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.video-card {
+    position: relative;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+    overflow: hidden;
+    background: #000;
+}
+
+.video-card video {
+    width: 100%;
+    display: block;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+
+.video-card.self-video video {
+    transform: scaleX(-1);
+}
+
+.video-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #c0c0c0;
+    color: #000;
+    font-size: 11px;
+    padding: 1px 4px;
+}
+
 .emoji-picker {
     position: absolute;
     z-index: 20;
