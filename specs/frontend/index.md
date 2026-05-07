@@ -47,7 +47,7 @@ Themes are self-contained CSS files in `frontend/themes/`. The active theme is s
 
 ## Signaling connection
 
-- Connect to `ws://${window.location.host}/ws/` after mic permission is granted
+- Connect to `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/` after mic permission is granted
 - No automatic reconnection on disconnect for now
 
 ## Peer management
@@ -77,19 +77,17 @@ On `welcome`, before creating any remote peer entries, render a self entry for t
 The self entry's name and emoji are editable:
 - Clicking on `.peer-name` in the self entry activates inline editing (text input)
   - Enter commits the edit, Escape cancels
-  - On commit: the client optimistically updates the display and sends a `{ type: "rename", name }` signaling message
-  - Empty values are rejected (edit is cancelled)
+  - On commit: the client optimistically updates the display and sends a `{ type: "user-renamed", name }` signaling message
 - Clicking on `.peer-emoji` in the self entry opens an emoji picker panel
   - The picker is a floating `<div class="emoji-picker">` positioned near the self entry
   - Emoji data is loaded from `emojis.js`, which defines `EMOJI_CATEGORIES` — a map of category names to emoji arrays
   - Category tabs (`.emoji-picker-tab`) at the top show the first emoji of each category as the tab label; clicking switches the grid
   - An emoji grid (`.emoji-picker-grid`) displays emojis for the active category in a 10-column grid
-  - Clicking an emoji applies it immediately, closes the picker, and sends a `{ type: "rename", emoji }` signaling message
+  - Clicking an emoji applies it immediately, closes the picker, and sends a `{ type: "user-renamed", emoji }` signaling message
   - Clicking outside the picker or pressing Escape closes it without changing
 
 On receiving a `user-renamed` message:
-- If the message's `user` matches the self entry's ID: update `name` and `emoji` on the self entry (unless currently being edited inline)
-- Otherwise: update `name` and `emoji` on the matching `Peer` entry
+- Update `name` and `emoji` on the matching `Peer` entry
 - The `PeerBase` reactive setters automatically update the DOM
 
 ### Peer lifecycle

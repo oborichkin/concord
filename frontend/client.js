@@ -13,15 +13,24 @@ const peersDiv = document.getElementById('peers');
 
 class PeerBase {
     constructor(templateId, { id, emoji, name, prepend } = {}) {
-        const node = document.getElementById(templateId).content.cloneNode(true);
-        this.element = node.querySelector("article");
         this.id = id;
-        this.emoji = emoji;
-        this.name = name;
+
+        const node = document.getElementById(templateId).content.cloneNode(true);
+        this.root = node.querySelector("article");
+
+        this._name = name;
+        this.nameEl = this.root.querySelector(".peer-name");
+        this.nameEl.textContent = name;
+
+        this._emoji = emoji;
+        this.emojiEl = this.root.querySelector(".peer-emoji");
+        this.emojiEl.textContent = emoji;
+
         this._muted = false;
-        this.muteBtn = this.element.querySelector(".mute-btn");
+        this.muteBtn = this.root.querySelector(".mute-btn");
         this.muteBtn.addEventListener("click", () => this._onMuteClick());
-        peersDiv[prepend ? "prepend" : "append"](this.element);
+
+        peersDiv[prepend ? "prepend" : "append"](this.root);
     }
 
     _onMuteClick() {
@@ -32,7 +41,7 @@ class PeerBase {
 
     set name(value) {
         this._name = value;
-        this.element.querySelector(".peer-name").textContent = value;
+        this.nameEl.textContent = value;
     }
 
     get name() {
@@ -41,7 +50,7 @@ class PeerBase {
 
     set emoji(value) {
         this._emoji = value;
-        this.element.querySelector(".peer-emoji").textContent = value;
+        this.emojiEl.textContent = value;
     }
 
     get emoji() {
@@ -52,36 +61,53 @@ class PeerBase {
 class Self extends PeerBase {
     constructor(id, emoji, name) {
         super("self-template", { id, emoji, name, prepend: true });
-        const emojiEl = this.element.querySelector(".peer-emoji");
-        const nameEl = this.element.querySelector(".peer-name");
-        emojiEl.addEventListener("click", () => this._openEmojiPicker(emojiEl));
-        nameEl.addEventListener("click", () => this._editField("name", nameEl));
+        this.emojiEl.addEventListener("click", () => this._openEmojiPicker());
+        this.nameEl.addEventListener("click", () => this._editName());
+    }
+
+    set name(value) {
+        signalingSocket.send(JSON.stringify({ type: "user-renamed", name: value }));
+        super.name = value;
+    }
+
+    get name() {
+        return super.name;
+    }
+
+    set emoji(value) {
+        super.emoji = value;
+        signalingSocket.send(JSON.stringify({ type: "user-renamed", emoji: value }));
+    }
+
+    get emoji() {
+        return super.emoji;
     }
 
     _setMuted(muted) {
         localStream.getAudioTracks().forEach(track => track.enabled = !muted);
     }
 
-    _editField(field, el) {
-        if (el.querySelector("input")) return;
-        const currentValue = this[`_${field}`];
+    _editName() {
+        if (this.nameEl.querySelector("input")) return;
+    
+        const currentValue = this.name;
         const input = document.createElement("input");
+
         input.type = "text";
         input.value = currentValue;
         input.maxLength = 64;
-        el.textContent = "";
-        el.appendChild(input);
+
+        this.nameEl.textContent = "";
+        this.nameEl.appendChild(input);
+
         input.focus();
         input.select();
 
         const commit = () => {
             const value = input.value.trim();
-            if (value && value !== currentValue) {
-                this[field] = value;
-                signalingSocket.send(JSON.stringify({ type: "rename", [field]: value }));
-            } else {
-                el.textContent = currentValue;
-            }
+            if (value && value !== currentValue) this.name = value;
+            else this.nameEl.textContent = currentValue;
+            input.remove();
         };
 
         input.addEventListener("blur", commit, { once: true });
@@ -91,7 +117,7 @@ class Self extends PeerBase {
         });
     }
 
-    _openEmojiPicker(emojiEl) {
+    _openEmojiPicker() {
         if (document.querySelector(".emoji-picker")) return;
         const picker = document.createElement("div");
         picker.className = "emoji-picker";
@@ -112,7 +138,6 @@ class Self extends PeerBase {
                 span.textContent = emoji;
                 span.addEventListener("click", () => {
                     this.emoji = emoji;
-                    signalingSocket.send(JSON.stringify({ type: "rename", emoji }));
                     picker.remove();
                 });
                 grid.appendChild(span);
@@ -138,12 +163,12 @@ class Self extends PeerBase {
         picker.appendChild(grid);
         renderGrid(activeCategory);
 
-        emojiEl.parentElement.appendChild(picker);
+        this.emojiEl.parentElement.appendChild(picker);
         picker.tabIndex = -1;
         picker.focus();
 
         const onClickOutside = (e) => {
-            if (!picker.contains(e.target) && e.target !== emojiEl) {
+            if (!picker.contains(e.target) && e.target !== this.emojiEl) {
                 picker.remove();
                 document.removeEventListener("click", onClickOutside, true);
                 document.removeEventListener("keydown", onEscape);
@@ -165,8 +190,8 @@ class Peer extends PeerBase {
 
     constructor(id, emoji, name) {
         super("peer-template", { id, emoji, name });
-        this.audioElement = this.element.querySelector("audio");
-        this.volumeSlider = this.element.querySelector(".volume");
+        this.audioElement = this.root.querySelector("audio");
+        this.volumeSlider = this.root.querySelector(".volume");
 
         this.volumeSlider.addEventListener("input", () => {
             this.audioElement.volume = this.volumeSlider.value;
@@ -197,7 +222,7 @@ class Peer extends PeerBase {
 
     destroy() {
         this.pc.close();
-        this.element.remove();
+        this.root.remove();
     }
 
     async createAndSendOffer() {
@@ -252,19 +277,10 @@ async function handleMessage(message) {
             await peers.get(message.user).addIceCandidate(message.candidate);
             break;
         case "user-renamed":
-            if (selfUser && message.user === selfUser.id) {
-                selfUser._name = message.name;
-                selfUser._emoji = message.emoji;
-                const nameEl = selfUser.element.querySelector(".peer-name");
-                const emojiEl = selfUser.element.querySelector(".peer-emoji");
-                if (!nameEl.querySelector("input")) nameEl.textContent = message.name;
-                if (!document.querySelector(".emoji-picker")) emojiEl.textContent = message.emoji;
-            } else {
-                const peer = peers.get(message.user);
-                if (peer) {
-                    peer.name = message.name;
-                    peer.emoji = message.emoji;
-                }
+            const renamedPeer = peers.get(message.user);
+            if (renamedPeer) {
+                renamedPeer.name = message.name ?? renamedPeer.name;
+                renamedPeer.emoji = message.emoji ?? renamedPeer.emoji;
             }
             break;
     }

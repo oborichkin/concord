@@ -4,12 +4,16 @@ WebRTC voice/video/screen-sharing chat: static frontend + Node.js WebSocket sign
 
 ## Design philosophy
 
-Minimal, bare-bones implementation. Goals:
+Minimal, bare-bones MVP. Goals:
 
 - Voice, video, and screen sharing in as few lines of code as possible (without sacrificing readability)
 - As few dependencies as possible
 - No JS frameworks on the frontend
 - Frontend HTML must have solid semantic structure — no styling hooks, no layout divs. The HTML alone should define the document, and a separate CSS file should fully control presentation (CSS Zen Garden approach)
+
+### Polite client/server assumption
+
+Client and server are assumed to always send well-formed, valid messages. Do not add input validation, sanitization, or defensive checks for malformed data unless explicitly requested. Premature optimization and speculative bug fixes should not compromise simplicity.
 
 ## Running
 

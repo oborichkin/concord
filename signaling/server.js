@@ -64,6 +64,14 @@ function getIceServers() {
     return servers;
 }
 
+class Connection {
+    constructor (ws, name, emoji) {
+        this.ws = ws;
+        this.name = name;
+        this.emoji = emoji;
+    }
+}
+
 export function createServer({ port = 8080, server = null } = {}) {
     const connections = new Map();
 
@@ -95,44 +103,34 @@ export function createServer({ port = 8080, server = null } = {}) {
             }));
         });
 
-        connections.set(id, { ws, emoji, name });
+        const connection = new Connection(ws, name, emoji);
+        connections.set(id, connection);
 
         ws.on('message', (message) => {
             try {
                 const data = JSON.parse(message);
                 console.log('Received:', data);
-                if (data.type === 'rename') {
-                    const conn = connections.get(id);
-                    let changed = false;
-                    if (typeof data.name === 'string' && data.name.length > 0 && data.name.length <= 64) {
-                        conn.name = data.name;
-                        changed = true;
-                    }
-                    if (typeof data.emoji === 'string' && data.emoji.length > 0 && data.emoji.length <= 32) {
-                        conn.emoji = data.emoji;
-                        changed = true;
-                    }
-                    if (!changed) return;
-                    const update = JSON.stringify({
-                        type: 'user-renamed',
-                        user: id,
-                        name: conn.name,
-                        emoji: conn.emoji,
-                    });
-                    connections.forEach((c) => c.ws.send(update));
-                } else if (data.target) {
-                    const { target, ...messageData } = data;
-                    messageData.user = id;
+                let out = {...data, user: id};
+
+                if (data.type === "user-renamed") {
+                    connection.name = data.name ?? connection.name;
+                    connection.emoji = data.emoji ?? connection.emoji;
+                }
+
+
+                if (data.target) {
+                    const { target, ...messageData } = out;
                     const targetConn = connections.get(target);
-                    if (targetConn) targetConn.ws.send(JSON.stringify(messageData));
+                    const json = JSON.stringify(messageData);
+                    if (targetConn) targetConn.ws.send(json);
                 } else {
-                    connections
-                        .forEach((conn, key) => {
-                            if (key !== id) conn.ws.send(message);
-                        });
+                    const json = JSON.stringify(out);
+                    connections.forEach((c, key) => {
+                        if (key !== id) c.ws.send(json);
+                    });
                 }
             } catch (error) {
-                console.error('Error parsing message:', error);
+                console.error('Error processing message:', error);
             }
         });
 

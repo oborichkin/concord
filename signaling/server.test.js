@@ -319,17 +319,12 @@ async function run() {
         const c2 = await connect(port);
         await c2.recv();
         await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', name: 'New Name' }));
-        const renamed1 = await c1.recv();
-        const renamed2 = await c2.recv();
-        assertEqual(renamed1.type, 'user-renamed', 'self type');
-        assertEqual(renamed1.user, w1.id, 'self user');
-        assertEqual(renamed1.name, 'New Name', 'self name');
-        assertEqual(renamed1.emoji, w1.emoji, 'self emoji unchanged');
-        assertEqual(renamed2.type, 'user-renamed', 'peer type');
-        assertEqual(renamed2.user, w1.id, 'peer user');
-        assertEqual(renamed2.name, 'New Name', 'peer name');
-        assertEqual(renamed2.emoji, w1.emoji, 'peer emoji unchanged');
+        c1.ws.send(JSON.stringify({ type: 'user-renamed', name: 'New Name' }));
+        const renamed = await c2.recv();
+        assertEqual(renamed.type, 'user-renamed', 'type');
+        assertEqual(renamed.user, w1.id, 'user');
+        assertEqual(renamed.name, 'New Name', 'name');
+        assertEqual(renamed.emoji, undefined, 'emoji not sent');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
@@ -342,13 +337,11 @@ async function run() {
         const c2 = await connect(port);
         await c2.recv();
         await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', emoji: '🐉' }));
-        const renamed1 = await c1.recv();
-        const renamed2 = await c2.recv();
-        assertEqual(renamed1.type, 'user-renamed', 'type');
-        assertEqual(renamed1.emoji, '🐉', 'emoji');
-        assertEqual(renamed1.name, w1.name, 'name unchanged');
-        assertEqual(renamed2.emoji, '🐉', 'peer emoji');
+        c1.ws.send(JSON.stringify({ type: 'user-renamed', emoji: '🐉' }));
+        const renamed = await c2.recv();
+        assertEqual(renamed.type, 'user-renamed', 'type');
+        assertEqual(renamed.emoji, '🐉', 'emoji');
+        assertEqual(renamed.name, undefined, 'name not sent');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
@@ -358,71 +351,35 @@ async function run() {
     await check('renames both name and emoji at once', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', name: 'Cool Cat', emoji: '😺' }));
-        const renamed = await c1.recv();
+        const c2 = await connect(port);
+        await c2.recv();
+        await c1.recv();
+        c1.ws.send(JSON.stringify({ type: 'user-renamed', name: 'Cool Cat', emoji: '😺' }));
+        const renamed = await c2.recv();
         assertEqual(renamed.name, 'Cool Cat', 'name');
         assertEqual(renamed.emoji, '😺', 'emoji');
         assertEqual(server.connections.get(w1.id).name, 'Cool Cat', 'stored name');
         assertEqual(server.connections.get(w1.id).emoji, '😺', 'stored emoji');
-        c1.ws.close();
-        await close(c1.ws);
-    });
-
-    await check('ignores empty name', async () => {
-        const c1 = await connect(port);
-        const w1 = await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', name: '' }));
-        await pollUntil(() => captured.some(c => c.level === 'log'));
-        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
-        c1.ws.close();
-        await close(c1.ws);
-    });
-
-    await check('ignores non-string name', async () => {
-        const c1 = await connect(port);
-        const w1 = await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', name: 123 }));
-        await pollUntil(() => captured.some(c => c.level === 'log'));
-        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
-        c1.ws.close();
-        await close(c1.ws);
-    });
-
-    await check('allows duplicate names', async () => {
-        const c1 = await connect(port);
-        const w1 = await c1.recv();
-        const c2 = await connect(port);
-        await c2.recv();
-        await c1.recv();
-        c2.ws.send(JSON.stringify({ type: 'rename', name: w1.name }));
-        const r1 = await c1.recv();
-        const r2 = await c2.recv();
-        assertEqual(r1.name, w1.name, 'duplicate name broadcast');
-        assertEqual(r2.name, w1.name, 'duplicate name self');
         c1.ws.close();
         c2.ws.close();
         await close(c1.ws);
         await close(c2.ws);
     });
 
-    await check('ignores rename with no fields', async () => {
+    await check('allows duplicate names', async () => {
         const c1 = await connect(port);
         const w1 = await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename' }));
-        await new Promise(r => setTimeout(r, 50));
-        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
+        const c2 = await connect(port);
+        const w2 = await c2.recv();
+        await c1.recv();
+        c2.ws.send(JSON.stringify({ type: 'user-renamed', name: w1.name }));
+        const r1 = await c1.recv();
+        assertEqual(r1.name, w1.name, 'duplicate name broadcast');
+        assertEqual(r1.user, w2.id, 'user');
         c1.ws.close();
+        c2.ws.close();
         await close(c1.ws);
-    });
-
-    await check('ignores rename with overly long name', async () => {
-        const c1 = await connect(port);
-        const w1 = await c1.recv();
-        c1.ws.send(JSON.stringify({ type: 'rename', name: 'x'.repeat(65) }));
-        await new Promise(r => setTimeout(r, 50));
-        assertEqual(server.connections.get(w1.id).name, w1.name, 'name unchanged');
-        c1.ws.close();
-        await close(c1.ws);
+        await close(c2.ws);
     });
 
     log('error handling:');

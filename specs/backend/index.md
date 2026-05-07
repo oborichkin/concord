@@ -2,6 +2,8 @@
 
 WebSocket relay server for WebRTC signaling. Manages peer connections via `Map<uuid, { ws, emoji, name }>`.
 
+Clients are assumed to send well-formed messages — the server does not validate or sanitize input.
+
 ## Connection
 
 - Assign a UUID, a random emoji (from a predefined pool), and a randomly generated nickname to each new WebSocket connection
@@ -37,36 +39,33 @@ When `TURN_SECRET` or `TURN_DOMAIN` is not set (development):
 A connected peer may change their display name and/or emoji:
 
 ```json
-{ "type": "rename", "name": "<new-name>" }
-{ "type": "rename", "emoji": "<new-emoji>" }
-{ "type": "rename", "name": "<new-name>", "emoji": "<new-emoji>" }
+{ "type": "user-renamed", "name": "<new-name>" }
+{ "type": "user-renamed", "emoji": "<new-emoji>" }
+{ "type": "user-renamed", "name": "<new-name>", "emoji": "<new-emoji>" }
 ```
 
-- At least one of `name` or `emoji` must be present
-- `name` must be a non-empty string (max 64 characters); otherwise it is ignored
-- `emoji` must be a non-empty string (max 32 characters); otherwise it is ignored
 - Duplicate names are allowed (no uniqueness enforcement on rename)
 - Server updates the connection's stored name/emoji
-- Server broadcasts to all connections (including the sender):
+- Server broadcasts to all connections **except the sender**, including only the fields present in the original message plus `type` and `user`:
   ```json
-  { "type": "user-renamed", "user": "<uuid>", "name": "<current-name>", "emoji": "<current-emoji>" }
+  { "type": "user-renamed", "user": "<uuid>", "name": "<new-name>" }
+  { "type": "user-renamed", "user": "<uuid>", "emoji": "<new-emoji>" }
+  { "type": "user-renamed", "user": "<uuid>", "name": "<new-name>", "emoji": "<new-emoji>" }
   ```
-- The broadcast always includes both `name` and `emoji` (the full current identity)
 
 ## Message routing
 
-Each incoming message is parsed as JSON. Two routing modes:
+Each incoming message is parsed as JSON. The server always adds a `user` field with the sender's UUID to the outgoing message. Two routing modes:
 
 ### Targeted (when `data.target` is present)
 
-- Strip `target` from the message
-- Add `user` field with the sender's UUID
+- Strip `target` from the message, add `user` field with sender's UUID
 - Forward to `connections.get(target).ws`
 - If target does not exist: silently drop (no error, no crash)
 
 ### Broadcast (when `data.target` is absent)
 
-- Relay the raw message string to every peer except the sender (via `conn.ws`)
+- Add `user` field with sender's UUID, relay to every peer except the sender
 
 ## Disconnection
 
