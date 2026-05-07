@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test('theme selector is present with correct options', async ({ page }) => {
     await page.goto('/');

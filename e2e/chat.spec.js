@@ -1,17 +1,4 @@
-import { test, expect } from '@playwright/test';
-
-async function waitForConnect(page) {
-    await page.waitForEvent('console', msg => msg.text() === 'Connected to signaling server');
-}
-
-async function connectUser(browser) {
-    const context = await browser.newContext({ permissions: ['microphone'] });
-    const page = await context.newPage();
-    const connected = waitForConnect(page);
-    await page.goto('/');
-    await connected;
-    return { context, page };
-}
+import { test, expect, waitForConnect } from './fixtures.js';
 
 test('page loads correctly', async ({ page }) => {
     await page.goto('/');
@@ -27,8 +14,8 @@ test('single user connects to signaling server', async ({ page }) => {
     await connected;
 });
 
-test('self entry renders on connect', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('self entry renders on connect', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const self = user.page.locator('#peers article.self');
     await expect(self).toBeAttached();
@@ -40,8 +27,8 @@ test('self entry renders on connect', async ({ browser }) => {
     await user.context.close();
 });
 
-test('self mute button toggles microphone track', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('self mute button toggles microphone track', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const self = user.page.locator('#peers article.self');
     const muteBtn = self.locator('.mute-btn');
@@ -69,9 +56,9 @@ test('self mute button toggles microphone track', async ({ browser }) => {
     await user.context.close();
 });
 
-test('self entry appears before peers', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('self entry appears before peers', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await expect(user1.page.locator('#peers article')).toHaveCount(2);
 
@@ -82,9 +69,9 @@ test('self entry appears before peers', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('two users see each other as peers', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('two users see each other as peers', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await expect(user1.page.locator('#peers article')).toHaveCount(2);
     await expect(user2.page.locator('#peers article')).toHaveCount(2);
@@ -98,9 +85,9 @@ test('two users see each other as peers', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('user leaving removes peer from remaining user', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('user leaving removes peer from remaining user', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await expect(user1.page.locator('#peers article')).toHaveCount(2);
 
@@ -112,9 +99,9 @@ test('user leaving removes peer from remaining user', async ({ browser }) => {
     await user1.context.close();
 });
 
-test('mute button toggles text on peer', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('mute button toggles text on peer', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     const peer = user1.page.locator('#peers article:not(.self)').first();
     const muteBtn = peer.locator('.mute-btn');
@@ -129,9 +116,9 @@ test('mute button toggles text on peer', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('audio flows between users via WebRTC', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('audio flows between users via WebRTC', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await expect(user1.page.locator('#peers article')).toHaveCount(2);
     await expect(user2.page.locator('#peers article')).toHaveCount(2);
@@ -149,9 +136,9 @@ test('audio flows between users via WebRTC', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('volume slider changes audio element volume', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('volume slider changes audio element volume', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     const peer = user1.page.locator('#peers article:not(.self)').first();
     const slider = peer.locator('.volume');

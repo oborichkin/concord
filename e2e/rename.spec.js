@@ -1,20 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
-async function waitForConnect(page) {
-    await page.waitForEvent('console', msg => msg.text() === 'Connected to signaling server');
-}
-
-async function connectUser(browser) {
-    const context = await browser.newContext({ permissions: ['microphone'] });
-    const page = await context.newPage();
-    const connected = waitForConnect(page);
-    await page.goto('/');
-    await connected;
-    return { context, page };
-}
-
-test('clicking self emoji opens emoji picker', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('clicking self emoji opens emoji picker', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const emojiEl = user.page.locator('#peers article.self .peer-emoji');
     await emojiEl.click();
@@ -23,8 +10,8 @@ test('clicking self emoji opens emoji picker', async ({ browser }) => {
     await user.context.close();
 });
 
-test('selecting emoji from picker updates self entry', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('selecting emoji from picker updates self entry', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const emojiEl = user.page.locator('#peers article.self .peer-emoji');
     await emojiEl.click();
@@ -39,9 +26,9 @@ test('selecting emoji from picker updates self entry', async ({ browser }) => {
     await user.context.close();
 });
 
-test('emoji change propagates to other user', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('emoji change propagates to other user', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await user1.page.locator('#peers article.self .peer-emoji').click();
     const pickerItem = user1.page.locator('.emoji-picker-grid .emoji-picker-item').first();
@@ -55,8 +42,8 @@ test('emoji change propagates to other user', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('clicking outside picker closes it without changing emoji', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('clicking outside picker closes it without changing emoji', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const emojiEl = user.page.locator('#peers article.self .peer-emoji');
     const originalEmoji = await emojiEl.textContent();
@@ -71,8 +58,8 @@ test('clicking outside picker closes it without changing emoji', async ({ browse
     await user.context.close();
 });
 
-test('escape closes picker without changing emoji', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('escape closes picker without changing emoji', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const emojiEl = user.page.locator('#peers article.self .peer-emoji');
     const originalEmoji = await emojiEl.textContent();
@@ -87,8 +74,8 @@ test('escape closes picker without changing emoji', async ({ browser }) => {
     await user.context.close();
 });
 
-test('category tabs switch emoji grid', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('category tabs switch emoji grid', async ({ connectUser }) => {
+    const user = await connectUser();
 
     await user.page.locator('#peers article.self .peer-emoji').click();
 
@@ -104,8 +91,8 @@ test('category tabs switch emoji grid', async ({ browser }) => {
     await user.context.close();
 });
 
-test('selecting emoji from non-default category updates self', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('selecting emoji from non-default category updates self', async ({ connectUser }) => {
+    const user = await connectUser();
 
     await user.page.locator('#peers article.self .peer-emoji').click();
 
@@ -122,9 +109,9 @@ test('selecting emoji from non-default category updates self', async ({ browser 
     await user.context.close();
 });
 
-test('selecting emoji from non-default category propagates to peer', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('selecting emoji from non-default category propagates to peer', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await user1.page.locator('#peers article.self .peer-emoji').click();
 
@@ -142,8 +129,8 @@ test('selecting emoji from non-default category propagates to peer', async ({ br
     await user2.context.close();
 });
 
-test('clicking self name opens inline text input', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('clicking self name opens inline text input', async ({ connectUser }) => {
+    const user = await connectUser();
 
     await user.page.locator('#peers article.self .peer-name').click();
     const input = user.page.locator('#peers article.self .peer-name input');
@@ -153,8 +140,8 @@ test('clicking self name opens inline text input', async ({ browser }) => {
     await user.context.close();
 });
 
-test('entering new name updates self entry', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('entering new name updates self entry', async ({ connectUser }) => {
+    const user = await connectUser();
 
     await user.page.locator('#peers article.self .peer-name').click();
     const input = user.page.locator('#peers article.self .peer-name input');
@@ -167,9 +154,9 @@ test('entering new name updates self entry', async ({ browser }) => {
     await user.context.close();
 });
 
-test('name change propagates to other user', async ({ browser }) => {
-    const user1 = await connectUser(browser);
-    const user2 = await connectUser(browser);
+test('name change propagates to other user', async ({ connectUser }) => {
+    const user1 = await connectUser();
+    const user2 = await connectUser();
 
     await user1.page.locator('#peers article.self .peer-name').click();
     const input = user1.page.locator('#peers article.self .peer-name input');
@@ -183,8 +170,8 @@ test('name change propagates to other user', async ({ browser }) => {
     await user2.context.close();
 });
 
-test('escape cancels name edit', async ({ browser }) => {
-    const user = await connectUser(browser);
+test('escape cancels name edit', async ({ connectUser }) => {
+    const user = await connectUser();
 
     const nameEl = user.page.locator('#peers article.self .peer-name');
     const originalName = await nameEl.textContent();

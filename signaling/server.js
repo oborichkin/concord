@@ -109,7 +109,6 @@ export function createServer({ port = 8080, server = null } = {}) {
         ws.on('message', (message) => {
             try {
                 const data = JSON.parse(message);
-                console.log('Received:', data);
                 let out = {...data, user: id};
 
                 if (data.type === "user-renamed") {
