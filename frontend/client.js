@@ -13,9 +13,15 @@ let selfUser = null;
 let peersDiv = document.getElementById('peers');
 
 class PeerBase {
-    constructor(templateId) {
+    constructor(templateId, { id, emoji, name, prepend } = {}) {
         const node = document.getElementById(templateId).content.cloneNode(true);
         this.element = node.querySelector("article");
+        this.id = id;
+        this.emoji = emoji;
+        this.name = name;
+        this.muteBtn = this.element.querySelector(".mute-btn");
+        this.muteBtn.addEventListener("click", () => this._onMuteClick());
+        peersDiv[prepend ? "prepend" : "append"](this.element);
     }
 
     set name(value) {
@@ -39,22 +45,17 @@ class PeerBase {
 
 class Self extends PeerBase {
     constructor(id, emoji, name) {
-        super("self-template");
-        this.id = id;
-        this.emoji = emoji;
-        this.name = name;
-        peersDiv.prepend(this.element);
-        const muteBtn = this.element.querySelector(".mute-btn");
-        muteBtn.addEventListener("click", () => {
-            const muted = muteBtn.textContent === "Mute";
-            localStream.getAudioTracks().forEach(track => track.enabled = !muted);
-            muteBtn.textContent = muted ? "Unmute" : "Mute";
-        });
-
+        super("self-template", { id, emoji, name, prepend: true });
         const emojiEl = this.element.querySelector(".peer-emoji");
         const nameEl = this.element.querySelector(".peer-name");
         emojiEl.addEventListener("click", () => this._openEmojiPicker(emojiEl));
         nameEl.addEventListener("click", () => this._editField("name", nameEl));
+    }
+
+    _onMuteClick() {
+        const muted = this.muteBtn.textContent === "Mute";
+        localStream.getAudioTracks().forEach(track => track.enabled = !muted);
+        this.muteBtn.textContent = muted ? "Unmute" : "Mute";
     }
 
     _editField(field, el) {
@@ -159,24 +160,14 @@ class Self extends PeerBase {
 class Peer extends PeerBase {
 
     constructor(id, emoji, name) {
-        super("peer-template");
-        this.id = id;
-        this.emoji = emoji;
-        this.name = name;
+        super("peer-template", { id, emoji, name });
         this.audioElement = this.element.querySelector("audio");
-        this.muteBtn = this.element.querySelector(".mute-btn");
         this.volumeSlider = this.element.querySelector(".volume");
-
-        this.muteBtn.addEventListener("click", () => {
-            this.audioElement.muted = !this.audioElement.muted;
-            this.muteBtn.textContent = this.audioElement.muted ? "Unmute" : "Mute";
-        });
 
         this.volumeSlider.addEventListener("input", () => {
             this.audioElement.volume = this.volumeSlider.value;
         });
 
-        peersDiv.appendChild(this.element);
         this.pc = new RTCPeerConnection({iceServers: iceServers});
         localStream.getAudioTracks().forEach(track => this.pc.addTrack(track));
 
@@ -195,6 +186,11 @@ class Peer extends PeerBase {
             this.audioElement.play()
                 .catch((reason) => {})
         }
+    }
+
+    _onMuteClick() {
+        this.audioElement.muted = !this.audioElement.muted;
+        this.muteBtn.textContent = this.audioElement.muted ? "Unmute" : "Mute";
     }
 
     destroy() {
