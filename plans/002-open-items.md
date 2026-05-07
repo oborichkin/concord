@@ -18,11 +18,6 @@
 - [ ] **Unhandled rejection in `onmessage` handler** (`frontend/client.js:139-141`)
   `await handleMessage(message)` runs inside `onmessage`. If it throws, the rejection is silently swallowed.
 
-# Inconsistencies
-
-- [ ] **Leftover debug text in log** (`signaling/server.js:25`)
-  `"New client ababa connected"` should be cleaned up.
-
 # Suggestions
 
 - [ ] **Show feedback when mic permission denied** (`frontend/client.js:143-145`)

@@ -78,26 +78,24 @@ export function createServer({ port = 8080, server = null } = {}) {
         const name = generateName(connections);
 
         ws.send(JSON.stringify({
-            "type": "welcome",
-            "id": id,
-            "emoji": emoji,
-            "name": name,
-            "peers": [...connections.entries()].map(([peerId, conn]) => ({ id: peerId, emoji: conn.emoji, name: conn.name })),
-            "iceServers": getIceServers(),
-        }))
+            type: "welcome",
+            id: id,
+            emoji: emoji,
+            name: name,
+            peers: [...connections.entries()].map(([peerId, conn]) => ({ id: peerId, emoji: conn.emoji, name: conn.name })),
+            iceServers: getIceServers(),
+        }));
 
         connections.forEach((conn) => {
             conn.ws.send(JSON.stringify({
-                "type": "user-joined",
-                "user": id,
-                "emoji": emoji,
-                "name": name,
-            }))
-        })
+                type: "user-joined",
+                user: id,
+                emoji: emoji,
+                name: name,
+            }));
+        });
 
         connections.set(id, { ws, emoji, name });
-
-        console.log('New client connected', id);
 
         ws.on('message', (message) => {
             try {
@@ -126,12 +124,12 @@ export function createServer({ port = 8080, server = null } = {}) {
                     const { target, ...messageData } = data;
                     messageData.user = id;
                     const targetConn = connections.get(target);
-                    if (targetConn) targetConn.ws.send(JSON.stringify(messageData))
+                    if (targetConn) targetConn.ws.send(JSON.stringify(messageData));
                 } else {
                     connections
                         .forEach((conn, key) => {
-                            if (key != id) conn.ws.send(message);
-                        })
+                            if (key !== id) conn.ws.send(message);
+                        });
                 }
             } catch (error) {
                 console.error('Error parsing message:', error);
@@ -139,14 +137,13 @@ export function createServer({ port = 8080, server = null } = {}) {
         });
 
         ws.on('close', () => {
-            console.log('Client disconnected');
-            connections.delete(id)
+            connections.delete(id);
             connections.forEach((conn) => {
                 conn.ws.send(JSON.stringify({
-                    "type": "user-left",
-                    "user": id,
-                }))
-            })
+                    type: "user-left",
+                    user: id,
+                }));
+            });
         });
     });
 

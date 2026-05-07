@@ -4,13 +4,12 @@ const ICE_SERVERS = [
 let iceServers = ICE_SERVERS;
 const CONNECTION_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`;
 
-// Objects
 let localStream = null;
 let signalingSocket = null;
 
 let peers = new Map();
 let selfUser = null;
-let peersDiv = document.getElementById('peers');
+const peersDiv = document.getElementById('peers');
 
 class PeerBase {
     constructor(templateId, { id, emoji, name, prepend } = {}) {
@@ -19,9 +18,16 @@ class PeerBase {
         this.id = id;
         this.emoji = emoji;
         this.name = name;
+        this._muted = false;
         this.muteBtn = this.element.querySelector(".mute-btn");
         this.muteBtn.addEventListener("click", () => this._onMuteClick());
         peersDiv[prepend ? "prepend" : "append"](this.element);
+    }
+
+    _onMuteClick() {
+        this._muted = !this._muted;
+        this.muteBtn.textContent = this._muted ? "Unmute" : "Mute";
+        this._setMuted(this._muted);
     }
 
     set name(value) {
@@ -52,10 +58,8 @@ class Self extends PeerBase {
         nameEl.addEventListener("click", () => this._editField("name", nameEl));
     }
 
-    _onMuteClick() {
-        const muted = this.muteBtn.textContent === "Mute";
+    _setMuted(muted) {
         localStream.getAudioTracks().forEach(track => track.enabled = !muted);
-        this.muteBtn.textContent = muted ? "Unmute" : "Mute";
     }
 
     _editField(field, el) {
@@ -113,7 +117,7 @@ class Self extends PeerBase {
                 });
                 grid.appendChild(span);
             }
-        }
+        };
 
         for (const cat of categories) {
             const tab = document.createElement("button");
@@ -177,25 +181,23 @@ class Peer extends PeerBase {
                     type: 'ice-candidate',
                     target: this.id,
                     candidate: event.candidate.toJSON()
-                }))
+                }));
             }
-        }
+        };
 
         this.pc.ontrack = (event) => {
             this.audioElement.srcObject = event.streams[0] || new MediaStream([event.track]);
-            this.audioElement.play()
-                .catch((reason) => {})
-        }
+            this.audioElement.play().catch(console.error);
+        };
     }
 
-    _onMuteClick() {
-        this.audioElement.muted = !this.audioElement.muted;
-        this.muteBtn.textContent = this.audioElement.muted ? "Unmute" : "Mute";
+    _setMuted(muted) {
+        this.audioElement.muted = muted;
     }
 
     destroy() {
-        this.pc.close()
-        this.element.remove()
+        this.pc.close();
+        this.element.remove();
     }
 
     async createAndSendOffer() {
@@ -223,7 +225,6 @@ class Peer extends PeerBase {
 }
 
 async function handleMessage(message) {
-    console.log('Received message:', message);
     switch (message.type) {
         case "welcome":
             if (message.iceServers) iceServers = message.iceServers;
@@ -266,9 +267,6 @@ async function handleMessage(message) {
                 }
             }
             break;
-        default:
-            // console.warn("Unexpected message", message);
-            break;
     }
 }
 
@@ -283,18 +281,13 @@ async function connect() {
             video: false,
         });
         localStream = stream;
-        window.localStream = stream;
 
         signalingSocket = new WebSocket(CONNECTION_URL);
-        signalingSocket.onopen = () => {
-            console.log('Connected to signaling server');
-        };
+        signalingSocket.onopen = () => {};
         signalingSocket.onerror = (error) => {
             console.error('Signaling error:', error);
         };
-        signalingSocket.onclose = () => {
-            console.log('Signaling connection closed');
-        };
+        signalingSocket.onclose = () => {};
         signalingSocket.onmessage = async (event) => {
             const message = JSON.parse(event.data);
             await handleMessage(message);
@@ -304,7 +297,7 @@ async function connect() {
     }
 }
 
-connect()
+connect();
 
 const themeStylesheet = document.getElementById('theme-stylesheet');
 const themeSelector = document.getElementById('theme-selector');
